@@ -13,6 +13,10 @@ treat each plugin directory as its own project and `cd` into it before running a
   plain text → bullet → checkbox → plain text. Uses a CodeMirror 6 content script.
 - `joplin-pandoc-docx/` — Tools menu command that exports the current note to
   `.docx` via `pandoc` and opens it in the OS default app.
+- `joplin-copy-heading-link/` — editor command that copies a Markdown link to
+  the heading at/above the cursor. A fork of hieuthi's Copy Anchor Link
+  plugin, done from the editor instead of the rendered preview so nothing
+  gets injected into notes.
 
 Each plugin directory is internally structured the same way (this is the generator's standard
 layout, not something specific to either plugin):
@@ -100,6 +104,31 @@ Restart Joplin after (re)installing either way.
   deprecated and hard-errors on current Joplin versions.
 - Known limitation: Joplin-internal resource links (`:/resource_id`) for embedded images and
   inter-note links aren't resolved by pandoc, so notes with embedded images lose them on export.
+
+### joplin-copy-heading-link
+
+- Fork of [hieuthi/joplin-plugin-copy-anchor-link](https://github.com/hieuthi/joplin-plugin-copy-anchor-link),
+  which injects clickable link icons next to every heading in the rendered note preview. This
+  fork drops that entirely (no injected preview content, so nothing extra rides along when
+  pasting into Outlook) in favor of an editor command + toolbar button + `Cmd/Ctrl+Shift+L`
+  that works from the cursor position instead.
+- `src/index.ts` registers the CM6 content script and the `copyHeadingLink` command. The
+  command forwards to the editor via `editor.execCommand`, gets back `{ headingText, slug }`
+  from the content script, fetches the note's fresh id/title via `joplin.data.get` (not the
+  possibly-stale `selectedNote()` fields), builds `[Note Title # Heading](:/noteId#slug)`, and
+  writes it to the clipboard — matching the original plugin's default "GF" link style.
+- `src/contentScript.ts` does the real work: scans the CM6 document for ATX headings
+  (`#` through `######`, skipping fenced code blocks so a `#`-prefixed line in a code sample
+  isn't mistaken for one), finds the heading at or above the cursor, strips common inline
+  Markdown (bold/italic/code/links) to approximate rendered plain text, and computes its anchor
+  slug with `@joplin/fork-uslug` — the same slugify package Joplin's own renderer uses via
+  `markdown-it-anchor` — so the link resolves to the same id the note preview assigns. Duplicate
+  heading text is disambiguated the same way `markdown-it-anchor` does by default (first
+  occurrence bare, later ones get `-1`, `-2`, ... appended, skipping slugs already taken by a
+  heading whose literal text collides with a computed suffix).
+- Known limitations: only ATX headings are recognized (not Setext `===`/`---` underlines), and
+  inline Markdown stripping is regex-based, not a full CommonMark parser — see the plugin's own
+  README for details.
 
 ## My Preferences
   - Writing style

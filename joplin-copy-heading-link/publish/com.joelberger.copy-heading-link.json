@@ -1,0 +1,18 @@
+{
+	"manifest_version": 1,
+	"id": "com.joelberger.copy-heading-link",
+	"app_min_version": "2.4",
+	"version": "1.0.0",
+	"name": "Copy Heading Link",
+	"description": "Copy a Markdown link to the heading under the cursor, in the format [Note Title # Heading](:/noteId#slug).",
+	"author": "Joel Berger",
+	"homepage_url": "https://github.com/joelberger76/joplin-plugins",
+	"repository_url": "https://github.com/joelberger76/joplin-plugins",
+	"keywords": [],
+	"categories": [],
+	"screenshots": [],
+	"icons": {},
+	"promo_tile": {},
+	"_publish_hash": "sha256:10c040409e57a7a79aea20679fd4c9b085c1d7977c9da062fdbe3c30656253c6",
+	"_publish_commit": "main:d3c9b196065d0aa122e83ce3762d08d85e398593"
+}
