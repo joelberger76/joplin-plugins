@@ -1,0 +1,18 @@
+{
+	"manifest_version": 1,
+	"id": "com.joelberger.cycle-bullet-checkbox",
+	"app_min_version": "2.4",
+	"version": "1.0.0",
+	"name": "Cycle Bullet Checkbox",
+	"description": "A plugin to cycle between no bullet point, a bullet point, and a checkbox",
+	"author": "Joel Berger",
+	"homepage_url": "https://github.com/joelberger76/joplin-plugins",
+	"repository_url": "https://github.com/joelberger76/joplin-plugins",
+	"keywords": [],
+	"categories": [],
+	"screenshots": [],
+	"icons": {},
+	"promo_tile": {},
+	"_publish_hash": "sha256:7a2a2cfa4ea4f2df8bc461499d5625131d3068a8fcb1d0eda3616ec5d1fbcf54",
+	"_publish_commit": ""
+}

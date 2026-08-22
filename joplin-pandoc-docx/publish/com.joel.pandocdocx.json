@@ -1,0 +1,12 @@
+{
+	"manifest_version": 1,
+	"id": "com.joel.pandocdocx",
+	"app_min_version": "2.0.0",
+	"version": "1.0.0",
+	"name": "Pandoc DOCX Export",
+	"description": "Converts the current note to DOCX using pandoc and opens it in the default app.",
+	"author": "Joel",
+	"homepage_url": "",
+	"_publish_hash": "sha256:545e43cb9cca07f50dbdf3fb6725118776cd0df2450493ae57158821f11d08ca",
+	"_publish_commit": ""
+}
