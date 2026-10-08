@@ -1,0 +1,18 @@
+{
+	"manifest_version": 1,
+	"id": "com.joelberger.inline-tag-style",
+	"app_min_version": "3.0",
+	"version": "1.0.0",
+	"name": "Inline Tag Style",
+	"description": "Highlights inline #tags as pills in the Markdown editor and hides them in the rendered note.",
+	"author": "Joel Berger",
+	"homepage_url": "https://github.com/joelberger76/joplin-plugins",
+	"repository_url": "https://github.com/joelberger76/joplin-plugins",
+	"keywords": [],
+	"categories": [],
+	"screenshots": [],
+	"icons": {},
+	"promo_tile": {},
+	"_publish_hash": "sha256:85aaa368ec7d3dc32c7fd6396652a3d7930870804fd7236f7de9b1f6dab775f7",
+	"_publish_commit": "main:c29eaadb8d42a2f0c718caf098102ea6333c6df3"
+}

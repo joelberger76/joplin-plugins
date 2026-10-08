@@ -17,6 +17,9 @@ treat each plugin directory as its own project and `cd` into it before running a
   the heading at/above the cursor. A fork of hieuthi's Copy Anchor Link
   plugin, done from the editor instead of the rendered preview so nothing
   gets injected into notes.
+- `joplin-inline-tag-style/`: shows inline `#tags` as pills in the Markdown editor and, in
+  the rendered note, hides them or shows them as plain words. Uses a CodeMirror 6 content
+  script and a markdown-it content script.
 
 Each plugin directory is internally structured the same way (this is the generator's standard
 layout, not something specific to either plugin):
@@ -129,6 +132,42 @@ Restart Joplin after (re)installing either way.
 - Known limitations: only ATX headings are recognized (not Setext `===`/`---` underlines), and
   inline Markdown stripping is regex-based, not a full CommonMark parser — see the plugin's own
   README for details.
+
+### joplin-inline-tag-style
+
+- No commands or menus. `src/index.ts` registers two color settings and two content scripts
+  (both listed in `plugin.config.json`'s `extraScripts`).
+- Pill colors: the editor script can't read settings, so it asks `index.ts` for them with
+  `context.postMessage({ name: 'getColors' })` on load and sets them as CSS variables
+  (`--inline-tag-background`, `--inline-tag-color`) on the editor's DOM; the base theme reads
+  those with a per-theme fallback. On a settings change `index.ts` runs the editor command
+  `inlineTagStyleRefreshColors` through `editor.execCommand` to re-fetch them.
+- `src/tags.ts` holds the one tag regex, shared by both scripts so the editor and the viewer
+  always agree. It deliberately mirrors `INLINE_TAG` in Joel's `joplin-tag-sync` skill (which
+  turns inline tags into native Joplin tags), so change the two together. It additionally
+  skips single-character and all-digit names ("Phone #s", "#2").
+- `src/editorTags.ts` (`ContentScriptType.CodeMirrorPlugin`) is a CM6 `ViewPlugin` that adds a
+  `cm-inline-tag` mark decoration to tags in the visible ranges, plus an `EditorView.baseTheme`
+  with the default pill style. It skips YAML front matter and uses the Lezer syntax tree to skip
+  code, link targets, HTML and math. Decorations are rebuilt when the syntax tree changes, not
+  only on doc/viewport changes, because parsing is incremental. `@codemirror/*` is loaded with
+  `require()` (webpack externals supplied by Joplin at runtime; no type packages installed).
+- `src/viewerTags.ts` (`ContentScriptType.MarkdownItPlugin`) is a core rule run after `inline`
+  that wraps tags in `<span class="inline-tag">`; `src/viewerTags.css` (shipped as a content
+  script asset, copied to `dist/` by webpack) hides them. Tags are hidden with CSS, never
+  removed from the HTML, because the Rich Text editor saves by converting rendered HTML back to
+  Markdown and would otherwise delete them from the note.
+- A tag is "part of a sentence" when other content follows it on the same line, unless that
+  content starts with a symbol or emoji (Joel ends meeting headings with "⏱️ 08:30-09:00").
+  Such a tag is shown as words: an outer `<span class="inline-tag-label" data-label="...">`
+  whose `::after` prints the label (`tagLabel` in `tags.ts`: last `/` segment, dashes and
+  underscores to spaces). The label is generated content for the same Rich Text reason.
+- Viewer edge cases: a tags-only paragraph is hidden whole (`inline-tags-only`); a tags-only
+  line inside a paragraph has its line break hidden too; a comma between two hidden tags is
+  hidden; a tags-only heading or list item shows its tags as words.
+- The webpack build only exposes each content script's default export, so `findEditorTags`
+  can't be reached from `dist/`. To test it, compile `src/` with `tsc` and run it against
+  `@codemirror/lang-markdown` in Node.
 
 ## My Preferences
   - Writing style

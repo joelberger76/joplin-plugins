@@ -1,0 +1,3 @@
+{
+	"extraScripts": ["editorTags.ts", "viewerTags.ts"]
+}

@@ -1,0 +1,18 @@
+/* Inline #tags are hidden in the rendered note. They stay in the HTML
+   (rather than being removed) so the Rich Text editor, which saves a note
+   by converting this HTML back to Markdown, cannot drop them. */
+.inline-tag {
+	display: none;
+}
+
+/* A tag that is part of a sentence is shown as plain words instead. The
+   words are generated content, so the tag itself is still the only text
+   in the HTML. */
+.inline-tag-label::after {
+	content: attr(data-label);
+}
+
+/* A paragraph made up of nothing but tags would leave an empty gap. */
+p.inline-tags-only {
+	display: none;
+}
