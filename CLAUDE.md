@@ -20,6 +20,9 @@ treat each plugin directory as its own project and `cd` into it before running a
 - `joplin-inline-tag-style/`: shows inline `#tags` as pills in the Markdown editor and, in
   the rendered note, hides them or shows them as plain words. Uses a CodeMirror 6 content
   script and a markdown-it content script.
+- `joplin-inline-tags/`: typing `#` in the Markdown editor opens an autocomplete of Joplin
+  tags and attaches the chosen one to the note. A fork of Roman Musin's Inline Tags plugin
+  with case-insensitive, match-anywhere autocomplete.
 
 Each plugin directory is internally structured the same way (this is the generator's standard
 layout, not something specific to either plugin):
@@ -168,6 +171,25 @@ Restart Joplin after (re)installing either way.
 - The webpack build only exposes each content script's default export, so `findEditorTags`
   can't be reached from `dist/`. To test it, compile `src/` with `tsc` and run it against
   `@codemirror/lang-markdown` in Node.
+
+### joplin-inline-tags
+
+- Fork of [roman-r-m/joplin-inline-tags-plugin](https://github.com/roman-r-m/joplin-inline-tags-plugin)
+  at v1.3.0, copied in without its git history. The id is `com.joelberger.inline-tags`, so it
+  must not be installed alongside the original (`com.whatever.inline-tags`).
+- It keeps upstream's older scaffold (`webpack.config.js`, `api/`, a `@joplin/lib` dev
+  dependency), so `npm install` is much heavier than in the other plugins.
+- `src/index.ts` answers three messages from the content script: `getTags` (all tags minus
+  the ones already on the selected note, plus the `keepText` setting), `setTag` and `newTag`.
+- `src/contentScript/index.ts` picks `codeMirror6Plugin.ts` or `codeMirror5Plugin.ts`
+  depending on the editor. Both get their candidates from `matchTags.ts`, which is the fork's
+  only real change: `findMatchingTags` does a case-insensitive substring match and ranks
+  prefix matches, then word-start matches, then the rest. `tagExists` decides whether to
+  offer "Create new tag".
+- The CM6 completion source returns `filter: false` (it does its own filtering), so the
+  matched text is only highlighted because it also returns `getMatch`.
+- Because `getTags` leaves out tags already on the note, "Create new tag" is still offered
+  for those. Picking it inserts the text, and the create request fails harmlessly.
 
 ## My Preferences
   - Writing style
