@@ -23,6 +23,10 @@ treat each plugin directory as its own project and `cd` into it before running a
 - `joplin-inline-tags/`: typing `#` in the Markdown editor opens an autocomplete of Joplin
   tags and attaches the chosen one to the note. A fork of Roman Musin's Inline Tags plugin
   with case-insensitive, match-anywhere autocomplete.
+- `joplin-alternate-checkboxes/`: renders Obsidian Minimal-style alternate checkboxes
+  (`- [/]`, `- [>]`, `- [!]` and so on) as colored icons in the rendered note and the Markdown
+  editor. Uses a markdown-it content script, a CodeMirror 6 content script and generated icon
+  styles.
 
 Each plugin directory is internally structured the same way (this is the generator's standard
 layout, not something specific to either plugin):
@@ -51,8 +55,9 @@ npm run updateVersion   # bump the patch version in both package.json and manife
 npm run update    # pulls the latest generator-joplin scaffold and merges it in
 ```
 
-There is no lint or test script in either plugin; `npm run dist` (which runs `tsc`/webpack) is
-the correctness check available.
+There is no lint or test script in most plugins; `npm run dist` (which runs `tsc`/webpack) is
+the correctness check available. The exception is `joplin-alternate-checkboxes/`, which adds
+`npm test` and `npm run icons` (see its architecture notes).
 
 `npm run dist` runs three webpack passes in sequence: compile `src/index.ts` (`buildMain`),
 compile any `extraScripts` from `plugin.config.json` (`buildExtraScripts`), then zip `dist/`
@@ -190,6 +195,57 @@ Restart Joplin after (re)installing either way.
   offer "Create new tag".
 - The CM6 completion source returns `filter: false` (it does its own filtering), so the
   matched text is only highlighted because it also returns `getMatch`.
+
+### joplin-alternate-checkboxes
+
+- No commands, menus or settings. `src/index.ts` only registers two content scripts (both
+  listed in `plugin.config.json`'s `extraScripts`): `src/altCheckboxes.ts` for the rendered
+  note and `src/editorCheckboxes.ts` for the editor.
+- Only the characters in `src/taskTypes.json` are handled, which is Minimal's set of 20.
+  `[ ]` and `[x]` stay with Joplin's built-in checkbox handling. Numbered lists are skipped.
+  Both scripts require the marker to be followed by whitespace or the end of the line, so
+  keep `MARKER` (viewer) and `AFTER_LIST_MARK` (editor) in step.
+- `src/taskTypes.json` is the single source for characters, labels, Lucide icon names and
+  colors. `tools/build-css.js` (`npm run icons`) turns it into two committed, generated files:
+  `src/altCheckboxes.css` (viewer stylesheet, shipped as a content script asset) and
+  `src/taskIcons.json` (label, color and icon per character, bundled into the editor script).
+  The icons are SVG data URIs used as CSS masks, so the color comes from
+  `--alt-checkbox-color`. `[/]` has no Lucide icon and uses a hand-drawn half-filled box
+  defined in `build-css.js`. `lucide-static` is a dev dependency used only by that script.
+- `altCheckboxes.ts` (`ContentScriptType.MarkdownItPlugin`) is a core rule pushed after
+  `inline`. For a matching bullet list item it removes the marker from the leading text tokens
+  and adds `class="alt-checkbox"`, `data-task="<char>"` and a `title` to the `<li>`. It matches
+  against the raw `inline.content`, so an escaped bracket (`- \[/] text`) opts out. If the
+  marker is not all plain text (for example `*` was parsed as emphasis) the item is left as
+  written.
+- The viewer icon rule's selector is `ul li.alt-checkbox[data-task]::before` on purpose: it
+  has to outrank Joplin's own `ul.joplin-checklist li::before`, which otherwise draws a second
+  box on alternate items that share a list with standard checkboxes.
+- `editorCheckboxes.ts` (`ContentScriptType.CodeMirrorPlugin`) is a CM6 `ViewPlugin` modelled
+  on Joplin's own `replaceCheckboxes.ts` (in `packages/editor/CodeMirror/extensions/rendering/`).
+  It walks the Lezer tree for `ListMark` nodes under `BulletList > ListItem`, so code blocks
+  are skipped for free, and replaces the list mark plus marker with an icon widget
+  (`span.cm-alt-checkbox[data-task]`). Size and offsets copy the built-in checkbox theme so
+  both line up in a mixed list. A `[-]` line also gets the `cm-alt-checkbox-canceled` line
+  class.
+- Reveal rule, copied from Joplin's checkboxes: the raw text shows while the selection
+  touches the list mark or marker, except for a bare cursor right before the list mark. A
+  cursor elsewhere on the line keeps the icon. Joel first described wanting it per line, so
+  this is a candidate to change: switch `selectionTouches` to a same-line check.
+- The replace decoration sets `inclusiveStart: true` on purpose. Joplin's `replaceBulletLists`
+  replaces the one-character list mark at the same start position; CodeMirror draws whichever
+  replacement sorts first, and `inclusiveStart` puts ours first whatever order the extensions
+  were added in. Without it a bullet can be drawn next to the icon.
+- `tools/test-rule.js` (`npm test`) runs the built `dist/altCheckboxes.js` against plain
+  `markdown-it`, so run `npm run dist` first. There is no committed test for the editor
+  script. It was checked by bundling `dist/editorCheckboxes.js` with esbuild next to Joplin's
+  real `replaceBulletLists` and `replaceCheckboxes` sources and `@codemirror/lang-markdown`
+  (GFM), in headless Chromium. When doing that, alias `@codemirror/*` to one build, or the
+  script's `require()` pulls a second copy and CodeMirror rejects the extension.
+- Known limitations: display only (no click-to-cycle), and the Rich Text editor does not know
+  the syntax and may rewrite or drop markers when it saves. Unlike `joplin-inline-tag-style`,
+  the viewer removes the marker from the HTML, it does not hide it with CSS.
+- Both parts have been installed and looked at in the Joplin app by Joel.
 
 ## My Preferences
   - Writing style

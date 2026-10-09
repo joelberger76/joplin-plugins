@@ -1,0 +1,22 @@
+{
+	"/": { "label": "incomplete", "icon": null, "color": "#2e80f2" },
+	"-": { "label": "canceled", "icon": "square-minus", "color": "#8a8a8a" },
+	">": { "label": "forwarded", "icon": "forward", "color": "#8a8a8a" },
+	"<": { "label": "scheduling", "icon": "calendar-clock", "color": "#8a8a8a" },
+	"?": { "label": "question", "icon": "circle-help", "color": "#e0ac00" },
+	"!": { "label": "important", "icon": "circle-alert", "color": "#ec7500" },
+	"*": { "label": "star", "icon": "star", "color": "#e0ac00" },
+	"\"": { "label": "quote", "icon": "quote", "color": "#12a8cd" },
+	"l": { "label": "location", "icon": "map-pin", "color": "#e93147" },
+	"b": { "label": "bookmark", "icon": "bookmark", "color": "#ec7500" },
+	"i": { "label": "information", "icon": "info", "color": "#2e80f2" },
+	"S": { "label": "savings", "icon": "piggy-bank", "color": "#08b94e" },
+	"I": { "label": "idea", "icon": "lightbulb", "color": "#e0ac00" },
+	"p": { "label": "pros", "icon": "thumbs-up", "color": "#08b94e" },
+	"c": { "label": "cons", "icon": "thumbs-down", "color": "#ec7500" },
+	"f": { "label": "fire", "icon": "flame", "color": "#e93147" },
+	"k": { "label": "key", "icon": "key-round", "color": "#e0ac00" },
+	"w": { "label": "win", "icon": "cake", "color": "#7852ee" },
+	"u": { "label": "up", "icon": "trending-up", "color": "#08b94e" },
+	"d": { "label": "down", "icon": "trending-down", "color": "#e93147" }
+}
