@@ -2,7 +2,7 @@
 	"manifest_version": 1,
 	"id": "com.joelberger.inline-tags",
 	"app_min_version": "1.8.1",
-	"version": "1.4.0",
+	"version": "1.4.1",
 	"name": "Inline tags",
 	"description": "Add tags to a note by typing #. Fork of Roman Musin's Inline Tags with case-insensitive, match-anywhere autocomplete.",
 	"author": "Roman Musin, Joel Berger",

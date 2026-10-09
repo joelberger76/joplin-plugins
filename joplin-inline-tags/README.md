@@ -8,6 +8,7 @@ Joel's fork of [roman-r-m/joplin-inline-tags-plugin](https://github.com/roman-r-
 - Best matches come first: names starting with what you typed, then names where it starts a
   later word (`work/foo`), then the rest. Each group is alphabetical.
 - "Create new tag" is no longer offered when the tag already exists.
+- Tags already on the note are listed too, so you can type the same tag again elsewhere in it.
 
 It has its own plugin id (`com.joelberger.inline-tags`), so uninstall the original before
 installing this one or both will show a completion list.

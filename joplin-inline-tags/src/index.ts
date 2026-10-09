@@ -42,10 +42,8 @@ joplin.plugins.register({
 			const noteId = selectedNoteIds[0];
 
 			if (message.command === 'getTags') {
-				let allTags = await getAll(joplin.data, ['tags'], { fields: ['id', 'title'], page: 1 });
-				const noteTags: string[] =
-					(await getAll(joplin.data, ['notes', noteId, 'tags'], { fields: ['id'], page: 1 })).map(t => t.id);
-				allTags = allTags.filter(t => !noteTags.includes(t.id));
+				// Tags already on the note are listed too, so they can be typed again elsewhere in it.
+				const allTags = await getAll(joplin.data, ['tags'], { fields: ['id', 'title'], page: 1 });
 
 				const keepText: boolean = await joplin.settings.value('keepText');
 				return {

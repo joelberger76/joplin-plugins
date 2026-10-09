@@ -179,8 +179,10 @@ Restart Joplin after (re)installing either way.
   must not be installed alongside the original (`com.whatever.inline-tags`).
 - It keeps upstream's older scaffold (`webpack.config.js`, `api/`, a `@joplin/lib` dev
   dependency), so `npm install` is much heavier than in the other plugins.
-- `src/index.ts` answers three messages from the content script: `getTags` (all tags minus
-  the ones already on the selected note, plus the `keepText` setting), `setTag` and `newTag`.
+- `src/index.ts` answers three messages from the content script: `getTags` (all tags plus
+  the `keepText` setting), `setTag` and `newTag`. Unlike upstream, `getTags` includes tags
+  already on the selected note, so a tag can be completed again elsewhere in the same note.
+  `setTag` for a tag the note already has is a no-op in Joplin.
 - `src/contentScript/index.ts` picks `codeMirror6Plugin.ts` or `codeMirror5Plugin.ts`
   depending on the editor. Both get their candidates from `matchTags.ts`, which is the fork's
   only real change: `findMatchingTags` does a case-insensitive substring match and ranks
@@ -188,8 +190,6 @@ Restart Joplin after (re)installing either way.
   offer "Create new tag".
 - The CM6 completion source returns `filter: false` (it does its own filtering), so the
   matched text is only highlighted because it also returns `getMatch`.
-- Because `getTags` leaves out tags already on the note, "Create new tag" is still offered
-  for those. Picking it inserts the text, and the create request fails harmlessly.
 
 ## My Preferences
   - Writing style
