@@ -1,7 +1,7 @@
 // What Sync does with one linked line (SPEC.md sections 6 and 7). This is
 // a pure decision: it calls nothing and changes nothing.
 
-import { formatLinkText, isDueByToday, LinkDetails, parseLinkText, sameOccurrence } from './details';
+import { formatLinkText, isDueByToday, isOccurrence, occurrenceOf } from './details';
 import { formatTaskLine, TaskLine } from './noteParser';
 import { TaskInfo } from './types';
 
@@ -13,8 +13,8 @@ export type TaskState =
 
 export interface SyncLine {
 	checked: boolean;
-	// The date and recurring mark read from the line's link text.
-	details: LinkDetails;
+	// What the line's link URL carries after "#", or null.
+	occurrence: string | null;
 }
 
 export interface SyncDecision {
@@ -67,12 +67,12 @@ export function decideSync(line: SyncLine, state: TaskState, today: Date): SyncD
 	// could mean "completed" or "postponed" (the known gap).
 	if (!line.checked) return { ...NOTHING, refresh: true };
 
-	// A checked recurring line stands for the occurrence whose date is in
-	// its link. It closes the task only if Todoist is still waiting on that
-	// occurrence. With no readable date, fall back to "due today or
+	// A checked recurring line stands for the occurrence named in its link
+	// URL. It closes the task only if Todoist is still waiting on that
+	// occurrence. With no readable occurrence, fall back to "due today or
 	// earlier". Either way the line is finished, so the link goes.
-	const stillWaiting = line.details.date
-		? sameOccurrence(line.details.date, task.due!)
+	const stillWaiting = isOccurrence(line.occurrence)
+		? line.occurrence === occurrenceOf(task.due)
 		: isDueByToday(task.due, today);
 
 	return {
@@ -87,7 +87,7 @@ export function decideSync(line: SyncLine, state: TaskState, today: Date): SyncD
 export function syncLineOf(line: TaskLine): SyncLine {
 	return {
 		checked: line.checked,
-		details: parseLinkText(line.link ? line.link.text : ''),
+		occurrence: line.link ? line.link.occurrence : null,
 	};
 }
 
@@ -95,7 +95,6 @@ export interface RewriteOptions {
 	showDetails: boolean;
 	// The task's project name, or null for the Inbox.
 	projectName: string | null;
-	today: Date;
 }
 
 // The text a linked line should have once `decision` has been carried out.
@@ -109,10 +108,14 @@ export function rewriteLine(line: TaskLine, decision: SyncDecision, task: TaskIn
 	}
 
 	if (decision.refresh && task) {
-		const pinned = parseLinkText(line.link.text).date;
-		const text = formatLinkText(task, { ...options, pinnedDateText: pinned ? pinned.text : null });
-		return formatTaskLine({ ...line, checked, name: task.content, link: { text, taskId: line.link.taskId } });
+		// A recurring line keeps the occurrence it already has. That date
+		// is pinned, never refreshed. A line without one gets the current
+		// occurrence, and a task that no longer recurs loses it.
+		const current = occurrenceOf(task.due);
+		const occurrence = current && isOccurrence(line.link.occurrence) ? line.link.occurrence : current;
+		const text = formatLinkText(task, options);
+		return formatTaskLine({ ...line, checked, name: task.content, link: { text, taskId: line.link.taskId, occurrence } });
 	}
 
-	return checked === line.checked ? line.text : formatTaskLine({ ...line, checked, link: { text: line.link.text, taskId: line.link.taskId } });
+	return checked === line.checked ? line.text : formatTaskLine({ ...line, checked });
 }

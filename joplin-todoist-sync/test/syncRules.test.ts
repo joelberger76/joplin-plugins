@@ -25,7 +25,7 @@ function sync(lineText: string, state: TaskInfo | 'missing', today: Date) {
 	const line = parseTaskLine(lineText, 0)!;
 	const taskState: TaskState = state === 'missing' ? { kind: 'missing' } : { kind: 'found', task: state };
 	const decision = decideSync(syncLineOf(line), taskState, today);
-	const text = rewriteLine(line, decision, state === 'missing' ? null : state, { showDetails: true, projectName: null, today });
+	const text = rewriteLine(line, decision, state === 'missing' ? null : state, { showDetails: true, projectName: null });
 	return { decision, text, stillLinked: parseTaskLine(text, 0)!.link !== null };
 }
 
@@ -62,11 +62,11 @@ test('6.1 checked box, completed task: nothing', () => {
 
 test('6.2 the line takes the name and details from Todoist', () => {
 	const result = sync(
-		`  - [ ] Old name #tag [↗ Oct 12](${URL})`,
+		`  - [ ] Old name #tag [↗ p3](${URL})`,
 		task({ content: 'New name', priority: 4, due: { date: '2026-10-14', isRecurring: false }, labels: ['errand'] }),
 		day(10, 11),
 	);
-	assert.equal(result.text, `  - [ ] New name [↗ Oct 14 · p1 · @@errand](${URL})`);
+	assert.equal(result.text, `  - [ ] New name [↗ p1 · @@errand](${URL})`);
 });
 
 // SPEC.md section 6.3
@@ -82,7 +82,7 @@ test('6.3 a missing task is reported and the line is left alone', () => {
 // SPEC.md section 7.1. The scenario numbers match the spec.
 
 test('7.1 #1 daily task, checked, synced the same day: one close, link removed, nothing to do the next day', () => {
-	const result = sync(`- [x] Take vitamins [↗ Oct 10 2026 ↻](${URL})`, recurring('2026-10-10'), day(10, 10));
+	const result = sync(`- [x] Take vitamins [↗ ↻](${URL}#2026-10-10)`, recurring('2026-10-10'), day(10, 10));
 	assert.equal(result.decision.closeTask, true);
 	assert.equal(result.text, '- [x] Take vitamins');
 	// The line is no longer linked, so the next Sync never looks at it.
@@ -90,15 +90,15 @@ test('7.1 #1 daily task, checked, synced the same day: one close, link removed, 
 });
 
 test('7.1 #2 unchecked, task still due on the line date: no change', () => {
-	const line = `- [ ] Take vitamins [↗ Oct 10 2026 ↻](${URL})`;
+	const line = `- [ ] Take vitamins [↗ ↻](${URL}#2026-10-10)`;
 	const result = sync(line, recurring('2026-10-10'), day(10, 11));
 	assert.equal(result.decision.closeTask, false);
 	assert.equal(result.decision.checkBox, false);
 	assert.equal(result.text, line);
 });
 
-test('7.1 #3 unchecked, completed elsewhere: box stays unchecked and the date stays pinned (known gap)', () => {
-	const line = `- [ ] Take vitamins [↗ Oct 10 2026 ↻](${URL})`;
+test('7.1 #3 unchecked, completed elsewhere: box stays unchecked and the occurrence stays pinned (known gap)', () => {
+	const line = `- [ ] Take vitamins [↗ ↻](${URL}#2026-10-10)`;
 	const result = sync(line, recurring('2026-10-11'), day(10, 11));
 	assert.equal(result.decision.checkBox, false);
 	assert.equal(result.decision.closeTask, false);
@@ -106,40 +106,40 @@ test('7.1 #3 unchecked, completed elsewhere: box stays unchecked and the date st
 });
 
 test('7.1 #4 across midnight: completed on the phone, ticked the next day: no close', () => {
-	const result = sync(`- [x] Take vitamins [↗ Oct 10 2026 ↻](${URL})`, recurring('2026-10-11'), day(10, 11));
+	const result = sync(`- [x] Take vitamins [↗ ↻](${URL}#2026-10-10)`, recurring('2026-10-11'), day(10, 11));
 	assert.equal(result.decision.closeTask, false);
 	assert.equal(result.decision.notice, 'movedOn');
 	assert.equal(result.text, '- [x] Take vitamins');
 });
 
 test('7.1 #5 completed on the phone and ticked the same day: no close', () => {
-	const result = sync(`- [x] Take vitamins [↗ Oct 10 2026 ↻](${URL})`, recurring('2026-10-11'), day(10, 10));
+	const result = sync(`- [x] Take vitamins [↗ ↻](${URL}#2026-10-10)`, recurring('2026-10-11'), day(10, 10));
 	assert.equal(result.decision.closeTask, false);
 	assert.equal(result.stillLinked, false);
 });
 
 test('7.1 #6 weekly task ticked early: one close, link removed', () => {
-	const result = sync(`- [x] Water plants [↗ Oct 17 2026 ↻](${URL})`, recurring('2026-10-17'), day(10, 14));
+	const result = sync(`- [x] Water plants [↗ ↻](${URL}#2026-10-17)`, recurring('2026-10-17'), day(10, 14));
 	assert.equal(result.decision.closeTask, true);
 	assert.equal(result.decision.notice, null);
 	assert.equal(result.stillLinked, false);
 });
 
 test('7.1 #7 five days overdue, checked: one close', () => {
-	const result = sync(`- [x] Take vitamins [↗ Oct 6 2026 ↻](${URL})`, recurring('2026-10-06'), day(10, 11));
+	const result = sync(`- [x] Take vitamins [↗ ↻](${URL}#2026-10-06)`, recurring('2026-10-06'), day(10, 11));
 	assert.equal(result.decision.closeTask, true);
 	assert.equal(result.stillLinked, false);
 });
 
 test('7.1 #8 postponed in Todoist, then ticked: no close, reported as moved on', () => {
-	const result = sync(`- [x] Take vitamins [↗ Oct 10 2026 ↻](${URL})`, recurring('2026-10-13'), day(10, 10));
+	const result = sync(`- [x] Take vitamins [↗ ↻](${URL}#2026-10-10)`, recurring('2026-10-13'), day(10, 10));
 	assert.equal(result.decision.closeTask, false);
 	assert.equal(result.decision.notice, 'movedOn');
 	assert.equal(result.stillLinked, false);
 });
 
 test('7.1 #9 the same occurrence checked in two notes: closed once', () => {
-	const line = `- [x] Take vitamins [↗ Oct 10 2026 ↻](${URL})`;
+	const line = `- [x] Take vitamins [↗ ↻](${URL}#2026-10-10)`;
 	const noteA = sync(line, recurring('2026-10-10'), day(10, 10));
 	assert.equal(noteA.decision.closeTask, true);
 	// Todoist has now moved the task to the next day.
@@ -149,15 +149,15 @@ test('7.1 #9 the same occurrence checked in two notes: closed once', () => {
 });
 
 test('7.1 #10 twice a day: the morning line does not close the evening occurrence', () => {
-	const result = sync(`- [x] Take vitamins [↗ Oct 10 2026 09:00 ↻](${URL})`, recurring('2026-10-10T21:00:00'), day(10, 10));
+	const result = sync(`- [x] Take vitamins [↗ ↻](${URL}#2026-10-10T09:00)`, recurring('2026-10-10T21:00:00'), day(10, 10));
 	assert.equal(result.decision.closeTask, false);
 	assert.equal(result.stillLinked, false);
 
-	const same = sync(`- [x] Take vitamins [↗ Oct 10 2026 09:00 ↻](${URL})`, recurring('2026-10-10T09:00:00'), day(10, 10));
+	const same = sync(`- [x] Take vitamins [↗ ↻](${URL}#2026-10-10T09:00)`, recurring('2026-10-10T09:00:00'), day(10, 10));
 	assert.equal(same.decision.closeTask, true);
 });
 
-test('7.1 #11 date deleted by hand: falls back to due today or earlier', () => {
+test('7.1 #11 occurrence deleted by hand: falls back to due today or earlier', () => {
 	const line = `- [x] Take vitamins [↗](${URL})`;
 	const dueToday = sync(line, recurring('2026-10-11'), day(10, 11));
 	assert.equal(dueToday.decision.closeTask, true);
@@ -170,23 +170,23 @@ test('7.1 #11 date deleted by hand: falls back to due today or earlier', () => {
 
 test('7.1 #12 ended recurrence, completed in Todoist: box is checked', () => {
 	const ended = task({ checked: true, due: { date: '2026-10-10', isRecurring: true } });
-	const result = sync(`- [ ] Take vitamins [↗ Oct 10 2026 ↻](${URL})`, ended, day(10, 11));
+	const result = sync(`- [ ] Take vitamins [↗ ↻](${URL}#2026-10-10)`, ended, day(10, 11));
 	assert.equal(result.decision.closeTask, false);
-	assert.equal(result.text, `- [x] Take vitamins [↗ Oct 10 2026 ↻](${URL})`);
+	assert.equal(result.text, `- [x] Take vitamins [↗ ↻](${URL}#2026-10-10)`);
 });
 
-test('7 an unchecked recurring line still takes a new name and priority, with its date pinned', () => {
+test('7 an unchecked recurring line still takes a new name and priority, with its occurrence pinned', () => {
 	const result = sync(
-		`- [ ] Take vitamins [↗ Oct 10 2026 ↻](${URL})`,
+		`- [ ] Take vitamins [↗ ↻](${URL}#2026-10-10)`,
 		recurring('2026-10-13', { content: 'Take vitamin D', priority: 3 }),
 		day(10, 11),
 	);
-	assert.equal(result.text, `- [ ] Take vitamin D [↗ Oct 10 2026 ↻ · p2](${URL})`);
+	assert.equal(result.text, `- [ ] Take vitamin D [↗ ↻ · p2](${URL}#2026-10-10)`);
 });
 
-test('7 a recurring line with no date gets the current one when refreshed', () => {
+test('7 a recurring line with no occurrence gets the current one when refreshed', () => {
 	const result = sync(`- [ ] Take vitamins [↗](${URL})`, recurring('2026-10-11'), day(10, 11));
-	assert.equal(result.text, `- [ ] Take vitamins [↗ Oct 11 2026 ↻](${URL})`);
+	assert.equal(result.text, `- [ ] Take vitamins [↗ ↻](${URL}#2026-10-11)`);
 });
 
 // SPEC.md section 7, rule 1 (scenario 13 uses this)
@@ -199,4 +199,16 @@ test('7 rule 1: a recurring task is fetched only when due today or earlier', () 
 	// Tasks that do not recur are always fetched, whatever their date.
 	assert.equal(isFetchable(task({ due: { date: '2026-10-18', isRecurring: false } }), today), true);
 	assert.equal(isFetchable(task(), today), true);
+});
+
+test('7 a line whose task stopped recurring loses its occurrence', () => {
+	const result = sync(`- [ ] Take vitamins [↗ ↻](${URL}#2026-10-10)`, task({ due: { date: '2026-10-12', isRecurring: false } }), day(10, 11));
+	assert.equal(result.text, `- [ ] Take vitamins [↗](${URL})`);
+});
+
+test('7 something else after the "#" is not an occurrence', () => {
+	// Falls back to due today or earlier, like a line with nothing there.
+	const result = sync(`- [x] Take vitamins [↗ ↻](${URL}#comment-123)`, recurring('2026-10-12'), day(10, 11));
+	assert.equal(result.decision.closeTask, false);
+	assert.equal(result.stillLinked, false);
 });

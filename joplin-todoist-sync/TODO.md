@@ -7,6 +7,9 @@
   each result in Joplin and in Todoist before moving on, and signs off before Sync is
   accepted.
 
+- [ ] Add keyboard shortcuts for the commands, and toolbar buttons with icons (build step
+  7). Decide with Joel which keys and which commands get a button.
+
 ## v2
 
 - [ ] Picker for ambiguous `##` and `@@` names. When a token matches more than one project
@@ -14,7 +17,9 @@
   meant and carry on, instead of skipping the line and reporting it. v1 skips and reports
   (SPEC.md sections 3.5 and 4).
 - [ ] Style the task details in the link (SPEC.md section 3.3) as pills or chips in the
-  Markdown editor and the rendered note, instead of plain link text. For example a colored
+  Markdown editor and the rendered note, instead of plain link text. Joel is not happy with
+  how `##Project` and `@@Label` read as plain text (2026-10-11), so this should replace
+  those marks with something nicer on screen while the note text stays as it is. For example a colored
   priority flag, a date chip that turns red when overdue, and project and label pills like
   the ones in `joplin-inline-tag-style`. Display only: the note text stays as it is.
 - [ ] Tick the box in Joplin when a recurring task is completed in Todoist (the known gap in

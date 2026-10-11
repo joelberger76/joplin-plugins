@@ -255,10 +255,23 @@ Restart Joplin after (re)installing either way.
 - In progress. `SPEC.md` in the plugin directory is the source of truth for behaviour, and
   its section 12 is the build order with the current status. Read it before changing
   anything. `TODO.md` there holds v2 ideas and things to do during the build.
-- Build step 1 is done: the logic modules in `src/` (`noteParser.ts`, `details.ts`,
-  `names.ts`, `sendText.ts`, `syncRules.ts`, `types.ts`) with no Joplin or network
-  dependency. `src/index.ts` is still an empty placeholder: no commands, settings or content
-  scripts yet.
+- Build steps 1 and 2 are done. Step 1 is the logic modules in `src/` (`noteParser.ts`,
+  `details.ts`, `names.ts`, `sendText.ts`, `syncRules.ts`, `types.ts`) with no Joplin or
+  network dependency. Step 2 is manual Fetch: three settings, the Fetch command under
+  Tools > Todoist Sync, `todoist.ts` (API client, takes `fetch` as a parameter so tests can fake
+  it) and `fetchPlan.ts` (turns tasks into edits). Sync, Send, the automatic first fetch and
+  the query block display are not built yet.
+- All note changes go through the CM6 content script `src/editor.ts`, never the data API
+  (the open editor ignores data API writes while it has unsaved typing). A command first
+  runs `todoistSyncGetState`, which returns the live text and opens a session that records
+  later document changes. It then sends `TextEdit`s (`edits.ts`) to `todoistSyncApplyEdits`,
+  which maps them through those changes and applies them as one transaction. Each edit names
+  the text it depends on and a group. A group is skipped whole if any of its text changed.
+- `src/editorApi.ts` holds the command names and shapes shared by `index.ts` and
+  `editor.ts`. `index.ts` must not import `editor.ts` itself, or webpack tries to bundle
+  `@codemirror/*` into the main script and fails.
+- `@codemirror/state` is a dev dependency for tests only (`test/fetch.test.ts` applies
+  edits through a real CodeMirror document). At runtime Joplin supplies it.
 - `npm test` compiles `test/*.test.ts` and the modules they import with
   `tsconfig.test.json` into `build-test/` (git-ignored) and runs them with Node's built-in
   test runner. The recurring task tests in `test/syncRules.test.ts` are numbered to match

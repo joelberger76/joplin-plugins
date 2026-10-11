@@ -1,6 +1,7 @@
 # joplin-todoist-sync: specification
 
-Status: draft 5, 2026-10-11. Build step 1 (logic and tests) is done. Every Todoist API assumption has been
+Status: draft 5, 2026-10-11. Build steps 1 and 2 are done. Step 2 (manual Fetch) is waiting
+to be tried in Joplin. Every Todoist API assumption has been
 tested live (section 9.1). A few items remain that can only be checked in the Joplin app
 during the build (section 9.3). Section 12 is the build order.
 
@@ -57,30 +58,44 @@ The link text carries the task's details, so they are visible without being part
 task name:
 
 ```
-- [ ] Send the budget #Q4 [↗ Oct 12 2026 ↻ · p1 · ##Work · @@Joel Berger](https://app.todoist.com/app/task/6XGgm6PHrGgMpCFX)
+- [ ] Send the budget #Q4 [↗ p1 · ##Work · @@Joel Berger](https://app.todoist.com/app/task/6XGgm6PHrGgMpCFX)
+- [ ] Take vitamins [↗ ↻ · p1](https://app.todoist.com/app/task/6XGgmFVcrG5RRjVr#2026-10-12)
 ```
 
 | Part | Shown as | Left out when |
 |---|---|---|
-| Due date | `Oct 12`, with a time as `Oct 12 14:00`, in another year as `Oct 12 2027` | no due date |
-| Recurring | `↻` after the date, and the date always includes the year: `Oct 12 2026 ↻` | not recurring |
+| Recurring | `↻` | not recurring |
 | Priority | `p1`, `p2`, `p3` | p4 (the default) |
 | Project | `##Name`, the full project name | Inbox |
 | Labels | `@@Name` each, the full label name | none |
 
 - Parts are joined with ` · `. A task with no details has the link text `↗` alone.
-- Dates are written out, never as "tomorrow", because the text stays in the note.
+- Due dates are not shown.
 - Project and labels use the same `##` and `@@` marks as the tokens typed before sending. They show the
   full resolved name, so `@@Joel` typed before sending comes back as `@@Joel Berger`. A
   single `#` or `@` is never written, so nothing here can become a Joplin tag or mention.
 - The details are display only. The plugin rewrites them from Todoist on every Send, Fetch
   and Sync. Editing them by hand changes nothing in Todoist and is overwritten.
-- One exception: the date of a recurring task is pinned. It is written once and never
-  refreshed, because it says which occurrence the line stands for (section 7). It always
-  includes the year, because a yearly task comes back on the same day and month and the
-  two occurrences must not be confused.
-- A setting turns the details off, leaving `↗` alone. Recurring lines keep their date and
-  `↻` regardless.
+- A setting turns the details off, leaving `↗` alone.
+
+### 3.3.1 The occurrence in a recurring line's URL
+
+A recurring line also carries the date of the occurrence it stands for. It is not in the
+visible text. It sits at the end of the link's URL, after a `#`:
+
+```
+https://app.todoist.com/app/task/6XGgmFVcrG5RRjVr#2026-10-12
+https://app.todoist.com/app/task/6XGgmFVcrG5RRjVr#2026-10-12T09:30
+```
+
+- The second form is for a task due at a time of day.
+- Todoist ignores that part of the URL, so the link opens the task as usual (checked by
+  Joel on 2026-10-11).
+- It is written by Fetch or Send and is **pinned**: Sync never refreshes it, because it
+  says which occurrence the line stands for (section 7).
+- It always includes the year, because a yearly task comes back on the same day and month
+  and the two occurrences must not be confused.
+- It is written whatever the "Show task details" setting says.
 
 ### 3.4 Query blocks
 
@@ -91,7 +106,14 @@ fetched: 2026-10-10 08:31
 ```
 ````
 
-- `filter:` is any Todoist filter query. Required.
+- `filter:` is any Todoist filter query. Required. It is sent to Todoist exactly as
+  written, so it uses Todoist's own filter syntax and none of this plugin's:
+  - `#Work` is a project, `##Work` is a project with its sub-projects, `@errand` is a label.
+    `@@` means nothing in a filter.
+  - A name with a space needs a backslash before the space: `@Amy\ Berger`. Names are not
+    matched loosely here the way `##` and `@@` tokens are in a task line (section 3.5).
+  - Todoist reports a filter it can't read as an error. It does not report an unknown
+    project or label, it just returns no tasks.
 - `fetched:` is written by the plugin after each run. A block without it has never run.
   Deleting the line re-arms the automatic first fetch.
 - Other lines are kept as they are and ignored.
@@ -134,7 +156,7 @@ label lists, ignoring case, spaces, dashes and underscores:
 
 ## 4. Send
 
-Command: **Todoist: Send checkboxes to Todoist**. Called Send in this document.
+Command: **Send checkboxes to Todoist**. Called Send in this document.
 
 - **Scope**: the lines touched by the selection if there is one, otherwise the whole note.
 - **Candidates**: unchecked, unlinked task lines with a non-empty name. Checked unlinked
@@ -157,14 +179,14 @@ Command: **Todoist: Send checkboxes to Todoist**. Called Send in this document.
   becomes
 
   ```
-  - [ ] Send the budget #Q4 [↗ Oct 12 · p1 · ##Work · @@Joel Berger](https://app.todoist.com/app/task/...)
+  - [ ] Send the budget #Q4 [↗ p1 · ##Work · @@Joel Berger](https://app.todoist.com/app/task/...)
   ```
 - **Report**: a short summary, for example "Created 4 tasks. 1 skipped: `@@Jo` matches Joel
   Berger and John Smith."
 
 ## 5. Fetch
 
-Command: **Todoist: Fetch tasks from Todoist**. Called Fetch in this document.
+Command: **Fetch tasks from Todoist**. Called Fetch in this document.
 
 ### 5.1 What is fetched
 
@@ -183,6 +205,9 @@ For each query block in the note, the open tasks matching its filter, except:
 - `fetched:` is set to the local date and time, also when there were no results.
 - If the note has no query block, the command inserts one at the cursor with the default
   filter from settings and runs it.
+- No blank line is added around the new lines, with one exception: when text follows
+  directly, one blank line is put between the list and that text. Without it Markdown
+  reads the text as part of the last task.
 
 ### 5.3 Automatic first fetch
 
@@ -201,7 +226,7 @@ fetched once, automatically.
 
 ## 6. Sync
 
-Command: **Todoist: Sync note**. It covers every linked line in the current note, whatever
+Command: **Sync note with Todoist**. It covers every linked line in the current note, whatever
 the selection. It does not create tasks and does not run query blocks.
 
 ### 6.1 Non-recurring tasks
@@ -224,8 +249,8 @@ synced, the next Sync checks the boxes of its subtasks' lines as well.
 If the name in the line differs from the task's name, the line takes Todoist's name.
 Todoist always wins. To rename a task, follow the link and rename it there.
 
-The details in the link (section 3.3) are refreshed the same way, so a date, priority,
-project or label changed in Todoist shows up in the note after the next Sync.
+The details in the link (section 3.3) are refreshed the same way, so a priority, project
+or label changed in Todoist shows up in the note after the next Sync.
 
 ### 6.3 Missing tasks
 
@@ -235,7 +260,7 @@ token makes every task look missing.
 
 ### 6.4 Remove dead links
 
-Command: **Todoist: Remove dead links**. For every linked line in the current note whose
+Command: **Remove dead Todoist links**. For every linked line in the current note whose
 task Todoist reports as not existing, the trailing link is removed and the line becomes a
 plain checkbox. It asks for confirmation first, showing how many links will be removed. If
 every linked line in the note would be affected, the confirmation says so and suggests
@@ -264,17 +289,17 @@ done" will uncheck the box again, or close the next occurrence as well.
 today or earlier, in the device's local date. One that is not available is treated as
 "nothing to do right now" (like an OmniFocus defer date) and is never fetched.
 
-**Rule 2, for Sync: a line stands for one occurrence.** A recurring line's link shows the
-due date of the occurrence it was created for, for example `[↗ Oct 10 2026 ↻]`. That date is
-**pinned**: it is written by Fetch or Send and never refreshed. Sync compares it with the
-task's due date in Todoist:
+**Rule 2, for Sync: a line stands for one occurrence.** A recurring line's link URL ends
+with the due date of the occurrence it was created for, for example `#2026-10-10` (section
+3.3.1). That date is **pinned**: it is written by Fetch or Send and never refreshed. Sync
+compares it with the task's due date in Todoist:
 
 - **Same date**: the occurrence is still waiting. A checked box closes it.
 - **Different date**: the task has moved on, because it was completed or rescheduled
   somewhere else. The line no longer stands for anything in Todoist, so the plugin never
   closes the task on its behalf.
 
-No hidden data is involved. The pinned date is ordinary text in the note.
+No hidden data is involved. The pinned date is part of the link in the note's text.
 
 | Situation | Result |
 |---|---|
@@ -295,8 +320,8 @@ Details:
   times a day is handled the same way.
 - A checked box with the same date closes the task even when that date is in the future.
   Ticking Saturday's task on Wednesday means it was done early.
-- A recurring line always carries its date and `↻`, even when the "Show task details"
-  setting is off, because Rule 2 depends on it.
+- A recurring line always carries its date, even when the "Show task details" setting is
+  off, because Rule 2 depends on it.
 - If the date has been removed or mangled by hand, Sync falls back to availability: a
   checked box closes the task only if it is due today or earlier. Either way the link is
   removed.
@@ -320,7 +345,7 @@ scenarios are run one at a time in a working session, and Joel reviews the resul
 in both Joplin and Todoist before the next one. Sync is not accepted until he has signed
 off on all of them.
 
-"Line Oct 10" means the link shows `Oct 10 2026 ↻`.
+"Line Oct 10" means the link URL ends with `#2026-10-10`.
 
 1. Daily task, line Oct 10, checked, synced on Oct 10: exactly one close call, link removed.
    Sync again on Oct 11: no Todoist call for that line.
@@ -340,7 +365,7 @@ off on all of them.
    no close call, and the summary says the task had already moved on.
 9. The same occurrence linked and checked in two notes. Sync note A: one close, link
    removed. Sync note B: link removed, no close.
-10. Task due twice a day, line `Oct 10 2026 09:00`, already moved to 21:00 the same day in
+10. Task due twice a day, line `#2026-10-10T09:00`, already moved to 21:00 the same day in
     Todoist,
     box checked: link removed, no close call.
 11. Line whose date was deleted by hand, checked. Task due today: one close call. Task due
@@ -349,7 +374,8 @@ off on all of them.
 13. Query `#Work` matches a recurring task due next week. Fetch: not inserted.
 14. Fetch the same query twice on the same day: the second fetch adds nothing.
 15. Today's journal is created from the template: available recurring tasks appear once,
-    each with today's or an earlier date and `↻`, and the `fetched:` line is written.
+    each with `↻` and today's or an earlier date in its URL, and the `fetched:` line is
+    written.
 
 ## 8. Display and settings
 
@@ -365,7 +391,7 @@ off on all of them.
 
 | Setting | Default |
 |---|---|
-| Todoist API token (stored securely) | empty |
+| Todoist API token (stored encrypted by Joplin, see 9.1 item 8) | empty |
 | Default project for sent tasks | empty (Inbox) |
 | Default filter for a new query block | `today \| overdue` |
 | Template notebooks (no automatic fetch) | `Templates` |
@@ -376,18 +402,22 @@ off on all of them.
 
 ### 8.3 Commands
 
-Four commands under Tools > Todoist, also available from the command palette:
+Four commands under Tools > Todoist Sync, also available from the command palette:
 
 | Command | Short name here | What it does |
 |---|---|---|
 | Send checkboxes to Todoist | Send | Creates tasks from unlinked checkbox lines |
 | Fetch tasks from Todoist | Fetch | Adds lines for tasks matching a query block |
-| Sync note | Sync | Reconciles lines that are already linked, in both directions |
-| Remove dead links | | Unlinks lines whose task no longer exists |
+| Sync note with Todoist | Sync | Reconciles lines that are already linked, in both directions |
+| Remove dead Todoist links | | Unlinks lines whose task no longer exists |
+
+The submenu is called "Todoist Sync". Each command name says "Todoist" once, so it also
+reads well in the command palette, where the submenu name is not shown.
 
 Send and Fetch both add new links, in opposite directions, and each is a deliberate act.
 Sync never creates a task and never adds a line, so it is safe to run on any note at any
-time. They are kept separate for that reason. No default keyboard shortcuts.
+time. They are kept separate for that reason. Keyboard shortcuts and toolbar buttons are
+added in the wrap-up step (see `TODO.md`).
 
 ## 9. Technical approach
 
@@ -405,14 +435,16 @@ time. They are kept separate for that reason. No default keyboard shortcuts.
   plugin's edits as editor transactions and collapses query blocks, and a markdown-it script
   for the rendered block. A block replacement spanning several lines has to come from a
   CodeMirror state field, not a view plugin.
-- Edits are applied by line content, not line number. Todoist calls take time and the note
-  can change meanwhile, so an edit is applied only if its line still reads as it did when
-  the command started. Otherwise the line is skipped and reported.
+- Edits follow the text they belong to. Todoist calls take time and the note can change
+  meanwhile. When a command reads the note, the editor script starts recording every change
+  made after that. Each edit names the text it depends on, and is moved through the recorded
+  changes before it is applied. If that text no longer reads the same, the edit is skipped
+  and reported, together with the other edits of the same block or line.
 - Task details need project names, and tasks carry only a project id. So every command
   fetches the project list once per run when details are turned on.
-- The pinned date of a recurring line is read back from the link text and compared with
-  the task's due date, including the year and any time of day. If the year has been removed
-  by hand, any year matches.
+- The pinned date of a recurring line is read back from the link URL and compared with
+  the task's due date, including the year and any time of day. Anything else after the `#`
+  is treated as no date.
 - Todoist's API numbers priority backwards: `p1` is `priority: 4` and the default `p4` is
   `priority: 1` (seen in the live test). The details formatter converts, and has a test.
 - Multiple devices: nothing to coordinate, since all state is in the note. The usual Joplin
@@ -487,11 +519,23 @@ still need a live test.
    tag pattern nor its mention pattern can match `##Name` or `@@Name`.
 7. **Rich Text round trip of the hidden block and the `↗` link: open.** Manual test in the
    app, once the viewer script exists.
+8. **Token storage: confirmed on Joel's machine.** A setting marked secure is not written
+   to `settings.json`. Joplin encrypts it with Electron's safe storage and keeps the result
+   in its database (`key_values` table, key
+   `KeychainServiceDriver.secureStore.setting.plugin-com.joelberger.todoist-sync.todoistSyncToken`).
+   The encryption key is the macOS Keychain item "Joplin Safe Storage". There is no separate
+   Keychain item per setting.
 
 ### 9.2 Companion change
 
-`joplin-inline-tags` opens its autocomplete on any `#`, so it will also open while typing
-`##Project`. Stop it from triggering when the `#` follows another `#`.
+`joplin-inline-tags` opens its autocomplete on any `#`. Two changes to it:
+
+- Stop it from triggering when the `#` follows another `#`, so it stays out of the way
+  while typing `##Project`.
+- Stop it from triggering inside a code block. A query block's filter uses `#Project`, and
+  accepting a suggestion there would attach a Joplin tag to the note. This is the only way
+  a filter can create a tag: `joplin-inline-tag-style` and the `joplin-tag-sync` skill both
+  skip code blocks already.
 
 ### 9.3 To check in the Joplin app during the build
 
@@ -535,10 +579,10 @@ The generator's standard `webpack.config.js` is used unchanged.
 Each step ends with something that can be run or installed and tried. A step is not started
 until the one before it is accepted.
 
-1. **Logic and tests, no Joplin. Done, awaiting review.** Scaffold the plugin. Write the pure modules: note
+1. **Logic and tests, no Joplin. Done.** Scaffold the plugin. Write the pure modules: note
    parsing, the details formatter, `##`/`@@` matching, and the sync decision function.
    `npm test` covers them, including scenarios 1 to 12 of section 7.1.
-2. **Fetch, manual.** Settings (token, default filter), the Todoist client, the editor
+2. **Fetch, manual. Built, to be tried in Joplin.** Settings (token, default filter), the Todoist client, the editor
    script that applies edits, and the Fetch command. This is the first version to install,
    and it settles check 1 of section 9.3.
 3. **Sync.** Completion, names, details, missing tasks and the recurring rules, with the
@@ -550,5 +594,5 @@ until the one before it is accepted.
    Journal and Templates plugins.
 6. **Display.** The collapsed query block in the editor and the hidden block or chip in the
    rendered note. Settles checks 2 and 3 of section 9.3.
-7. **Wrap-up.** Remove dead links, the companion change to `joplin-inline-tags`, a README,
+7. **Wrap-up.** Remove dead links, keyboard shortcuts and toolbar buttons, the companion change to `joplin-inline-tags`, a README,
    and the plugin's entry in the repo's `CLAUDE.md`.

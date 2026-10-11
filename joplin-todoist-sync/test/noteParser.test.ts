@@ -18,7 +18,7 @@ test('reads plain, checked and linked task lines', () => {
 
 	const linked = parseTaskLine(`- [ ] Call the plumber [↗ Oct 12 · p1](${URL})`, 0)!;
 	assert.equal(linked.name, 'Call the plumber');
-	assert.deepEqual(linked.link, { text: '↗ Oct 12 · p1', url: URL, taskId: '6XGgm6PHrGgMpCFX' });
+	assert.deepEqual(linked.link, { text: '↗ Oct 12 · p1', url: URL, taskId: '6XGgm6PHrGgMpCFX', occurrence: null });
 });
 
 test('ignores lines that are not task lines', () => {
@@ -43,6 +43,17 @@ test('a Todoist link that is not at the end does not link the line', () => {
 test('reads the id from a URL copied out of the Todoist app', () => {
 	const line = parseTaskLine('- [ ] Thing [x](https://app.todoist.com/app/task/call-the-plumber-6XGgm6PHrGgMpCFX)', 0)!;
 	assert.equal(line.link!.taskId, '6XGgm6PHrGgMpCFX');
+});
+
+test('reads and writes the occurrence at the end of the URL', () => {
+	const line = parseTaskLine(`- [ ] Take vitamins [↗ ↻](${URL}#2026-10-12T09:30)`, 0)!;
+	assert.equal(line.link!.taskId, '6XGgm6PHrGgMpCFX');
+	assert.equal(line.link!.occurrence, '2026-10-12T09:30');
+	assert.equal(line.name, 'Take vitamins');
+
+	const text = formatTaskLine({ indent: '', bullet: '-', checked: false, name: 'Take vitamins', link: { text: '↗ ↻', taskId: 'abc123', occurrence: '2026-10-12' } });
+	assert.equal(text, '- [ ] Take vitamins [↗ ↻](https://app.todoist.com/app/task/abc123#2026-10-12)');
+	assert.equal(parseTaskLine(text, 0)!.link!.occurrence, '2026-10-12');
 });
 
 test('link text with brackets survives a round trip', () => {

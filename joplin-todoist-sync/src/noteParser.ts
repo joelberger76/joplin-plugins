@@ -7,6 +7,9 @@ export interface TaskLink {
 	text: string;
 	url: string;
 	taskId: string;
+	// What follows "#" at the end of the URL, or null. A recurring line
+	// keeps the date of its occurrence there (SPEC.md section 7).
+	occurrence: string | null;
 }
 
 export interface TaskLine {
@@ -46,10 +49,12 @@ const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s/;
 // link is recognized by its URL alone. The id is the last dash-separated
 // part of the path, so a URL copied from the Todoist app, which puts the
 // task name in front of the id, works too.
-const TRAILING_LINK = /(?:^|\s)\[((?:\\.|[^\]\\])*)\]\((https:\/\/(?:app\.)?todoist\.com\/app\/task\/(?:[A-Za-z0-9_%.~]+-)*([A-Za-z0-9_]+))\)\s*$/;
+const TRAILING_LINK = /(?:^|\s)\[((?:\\.|[^\]\\])*)\]\((https:\/\/(?:app\.)?todoist\.com\/app\/task\/(?:[A-Za-z0-9_%.~]+-)*([A-Za-z0-9_]+)(?:#([^\s)]*))?)\)\s*$/;
 
-export function taskUrl(taskId: string): string {
-	return `https://app.todoist.com/app/task/${taskId}`;
+// The occurrence, if given, goes after a "#". Todoist ignores that part of
+// the URL, so the link still opens the task.
+export function taskUrl(taskId: string, occurrence?: string | null): string {
+	return `https://app.todoist.com/app/task/${taskId}${occurrence ? `#${occurrence}` : ''}`;
 }
 
 export function escapeLinkText(text: string): string {
@@ -83,6 +88,7 @@ export function parseTaskLine(text: string, lineNumber: number): TaskLine | null
 			text: unescapeLinkText(linkMatch[1]),
 			url: linkMatch[2],
 			taskId: linkMatch[3],
+			occurrence: linkMatch[4] || null,
 		};
 	}
 
@@ -103,12 +109,12 @@ export function formatTaskLine(line: {
 	bullet: string;
 	checked: boolean;
 	name: string;
-	link: { text: string; taskId: string } | null;
+	link: { text: string; taskId: string; occurrence?: string | null } | null;
 }): string {
 	const box = line.checked ? '[x]' : '[ ]';
 	const parts = [`${line.indent}${line.bullet} ${box}`];
 	if (line.name) parts.push(line.name);
-	if (line.link) parts.push(`[${escapeLinkText(line.link.text)}](${taskUrl(line.link.taskId)})`);
+	if (line.link) parts.push(`[${escapeLinkText(line.link.text)}](${taskUrl(line.link.taskId, line.link.occurrence)})`);
 	return parts.join(' ');
 }
 
