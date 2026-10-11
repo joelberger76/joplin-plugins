@@ -1,6 +1,6 @@
 # joplin-todoist-sync: specification
 
-Status: draft 4, 2026-10-11. Nothing is built yet. Every Todoist API assumption has been
+Status: draft 5, 2026-10-11. Build step 1 (logic and tests) is done. Every Todoist API assumption has been
 tested live (section 9.1). A few items remain that can only be checked in the Joplin app
 during the build (section 9.3). Section 12 is the build order.
 
@@ -57,13 +57,13 @@ The link text carries the task's details, so they are visible without being part
 task name:
 
 ```
-- [ ] Send the budget #Q4 [↗ Oct 12 ↻ · p1 · ##Work · @@Joel Berger](https://app.todoist.com/app/task/6XGgm6PHrGgMpCFX)
+- [ ] Send the budget #Q4 [↗ Oct 12 2026 ↻ · p1 · ##Work · @@Joel Berger](https://app.todoist.com/app/task/6XGgm6PHrGgMpCFX)
 ```
 
 | Part | Shown as | Left out when |
 |---|---|---|
 | Due date | `Oct 12`, with a time as `Oct 12 14:00`, in another year as `Oct 12 2027` | no due date |
-| Recurring | `↻` after the date | not recurring |
+| Recurring | `↻` after the date, and the date always includes the year: `Oct 12 2026 ↻` | not recurring |
 | Priority | `p1`, `p2`, `p3` | p4 (the default) |
 | Project | `##Name`, the full project name | Inbox |
 | Labels | `@@Name` each, the full label name | none |
@@ -76,7 +76,9 @@ task name:
 - The details are display only. The plugin rewrites them from Todoist on every Send, Fetch
   and Sync. Editing them by hand changes nothing in Todoist and is overwritten.
 - One exception: the date of a recurring task is pinned. It is written once and never
-  refreshed, because it says which occurrence the line stands for (section 7).
+  refreshed, because it says which occurrence the line stands for (section 7). It always
+  includes the year, because a yearly task comes back on the same day and month and the
+  two occurrences must not be confused.
 - A setting turns the details off, leaving `↗` alone. Recurring lines keep their date and
   `↻` regardless.
 
@@ -104,6 +106,10 @@ In an unlinked line, before it is sent:
 | `@@Name` | Add this Todoist label (can be repeated) |
 | `tomorrow`, `every mon`, `p1` and other Todoist date and priority words | Parsed by Todoist |
 | `#tag`, `@name` (single) | Plain text. Never read as project or label. |
+
+The rest of Todoist's quick add syntax is passed through as typed, because the name goes
+to quick add: `{friday}` sets a deadline, `!30m` a reminder, and ` // some text` at the end
+becomes the task's description. Only `#` and `@` are protected.
 
 `##` and `@@` do not match the inline tag pattern used by `joplin-inline-tag-style` and the
 `joplin-tag-sync` skill, so they are never treated as Joplin tags.
@@ -259,7 +265,7 @@ today or earlier, in the device's local date. One that is not available is treat
 "nothing to do right now" (like an OmniFocus defer date) and is never fetched.
 
 **Rule 2, for Sync: a line stands for one occurrence.** A recurring line's link shows the
-due date of the occurrence it was created for, for example `[↗ Oct 10 ↻]`. That date is
+due date of the occurrence it was created for, for example `[↗ Oct 10 2026 ↻]`. That date is
 **pinned**: it is written by Fetch or Send and never refreshed. Sync compares it with the
 task's due date in Todoist:
 
@@ -314,7 +320,7 @@ scenarios are run one at a time in a working session, and Joel reviews the resul
 in both Joplin and Todoist before the next one. Sync is not accepted until he has signed
 off on all of them.
 
-"Line Oct 10" means the link shows `Oct 10 ↻`.
+"Line Oct 10" means the link shows `Oct 10 2026 ↻`.
 
 1. Daily task, line Oct 10, checked, synced on Oct 10: exactly one close call, link removed.
    Sync again on Oct 11: no Todoist call for that line.
@@ -334,7 +340,8 @@ off on all of them.
    no close call, and the summary says the task had already moved on.
 9. The same occurrence linked and checked in two notes. Sync note A: one close, link
    removed. Sync note B: link removed, no close.
-10. Task due twice a day, line `Oct 10 09:00`, already moved to `Oct 10 21:00` in Todoist,
+10. Task due twice a day, line `Oct 10 2026 09:00`, already moved to 21:00 the same day in
+    Todoist,
     box checked: link removed, no close call.
 11. Line whose date was deleted by hand, checked. Task due today: one close call. Task due
     tomorrow: no close call. Link removed in both cases.
@@ -403,9 +410,9 @@ time. They are kept separate for that reason. No default keyboard shortcuts.
   the command started. Otherwise the line is skipped and reported.
 - Task details need project names, and tasks carry only a project id. So every command
   fetches the project list once per run when details are turned on.
-- The pinned date of a recurring line is read back from the link text. The year is left
-  out when it is the current one, so the parser picks the year that puts the date nearest to
-  today.
+- The pinned date of a recurring line is read back from the link text and compared with
+  the task's due date, including the year and any time of day. If the year has been removed
+  by hand, any year matches.
 - Todoist's API numbers priority backwards: `p1` is `priority: 4` and the default `p4` is
   `priority: 1` (seen in the live test). The details formatter converts, and has a test.
 - Multiple devices: nothing to coordinate, since all state is in the note. The usual Joplin
@@ -502,9 +509,9 @@ still need a live test.
 
 None at the moment.
 
-Decided: v1 is desktop only. To keep a later mobile build possible, the plugin uses only
-`fetch` and the Joplin plugin API, with no Node modules (`fs`, `child_process`) and no
-`target: 'node'` in webpack.
+Decided: v1 is desktop only. To keep a later mobile build possible, the plugin's own code
+uses only `fetch` and the Joplin plugin API, with no Node modules (`fs`, `child_process`).
+The generator's standard `webpack.config.js` is used unchanged.
 
 ## 11. Non-goals for v1
 
@@ -528,7 +535,7 @@ Decided: v1 is desktop only. To keep a later mobile build possible, the plugin u
 Each step ends with something that can be run or installed and tried. A step is not started
 until the one before it is accepted.
 
-1. **Logic and tests, no Joplin.** Scaffold the plugin. Write the pure modules: note
+1. **Logic and tests, no Joplin. Done, awaiting review.** Scaffold the plugin. Write the pure modules: note
    parsing, the details formatter, `##`/`@@` matching, and the sync decision function.
    `npm test` covers them, including scenarios 1 to 12 of section 7.1.
 2. **Fetch, manual.** Settings (token, default filter), the Todoist client, the editor

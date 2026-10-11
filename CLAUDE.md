@@ -27,6 +27,9 @@ treat each plugin directory as its own project and `cd` into it before running a
   (`- [/]`, `- [>]`, `- [!]` and so on) as colored icons in the rendered note and the Markdown
   editor. Uses a markdown-it content script, a CodeMirror 6 content script and generated icon
   styles.
+- `joplin-todoist-sync/`: in progress. Sends checkboxes in the current note to Todoist,
+  fetches Todoist tasks into the note from a `todoist` query block, and syncs completion,
+  names and details for linked lines. Built step by step from `SPEC.md` in its directory.
 
 Each plugin directory is internally structured the same way (this is the generator's standard
 layout, not something specific to either plugin):
@@ -246,6 +249,26 @@ Restart Joplin after (re)installing either way.
   the syntax and may rewrite or drop markers when it saves. Unlike `joplin-inline-tag-style`,
   the viewer removes the marker from the HTML, it does not hide it with CSS.
 - Both parts have been installed and looked at in the Joplin app by Joel.
+
+### joplin-todoist-sync
+
+- In progress. `SPEC.md` in the plugin directory is the source of truth for behaviour, and
+  its section 12 is the build order with the current status. Read it before changing
+  anything. `TODO.md` there holds v2 ideas and things to do during the build.
+- Build step 1 is done: the logic modules in `src/` (`noteParser.ts`, `details.ts`,
+  `names.ts`, `sendText.ts`, `syncRules.ts`, `types.ts`) with no Joplin or network
+  dependency. `src/index.ts` is still an empty placeholder: no commands, settings or content
+  scripts yet.
+- `npm test` compiles `test/*.test.ts` and the modules they import with
+  `tsconfig.test.json` into `build-test/` (git-ignored) and runs them with Node's built-in
+  test runner. The recurring task tests in `test/syncRules.test.ts` are numbered to match
+  SPEC.md section 7.1.
+- `tools/verify-todoist-api.mjs` checks Todoist API behaviour against a real account. Joel
+  runs it himself with `TODOIST_TOKEN` set in his own terminal, and it writes
+  `tools/verify-todoist-api.out.txt` (git-ignored) for Claude to read. Never ask for the
+  token.
+- The recurring task rules are to be tested interactively with Joel against his real
+  account before Sync is accepted (SPEC.md section 7.1).
 
 ## My Preferences
   - Writing style

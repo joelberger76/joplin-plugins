@@ -1,0 +1,16 @@
+{
+	"manifest_version": 1,
+	"id": "com.joelberger.todoist-sync",
+	"app_min_version": "3.0",
+	"version": "0.1.0",
+	"name": "Todoist Sync",
+	"description": "Sends checkboxes in the current note to Todoist as tasks, fetches Todoist tasks into the note, and keeps the two in step.",
+	"author": "Joel Berger",
+	"homepage_url": "https://github.com/joelberger76/joplin-plugins",
+	"repository_url": "https://github.com/joelberger76/joplin-plugins",
+	"keywords": [],
+	"categories": [],
+	"screenshots": [],
+	"icons": {},
+	"promo_tile": {}
+}

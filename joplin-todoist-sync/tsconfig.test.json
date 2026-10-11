@@ -1,0 +1,12 @@
+{
+	"compilerOptions": {
+		"outDir": "./build-test/",
+		"rootDir": ".",
+		"module": "commonjs",
+		"target": "es2020",
+		"strict": true,
+		"skipLibCheck": true,
+		"types": ["node"]
+	},
+	"include": ["test/**/*.ts"]
+}
