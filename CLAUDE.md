@@ -255,5 +255,5 @@ Restart Joplin after (re)installing either way.
      - When committing, include untracked files.
      - When committing, if there are unstaged changes predating your session, please include them.
      - When committing, you should not push to origin until I tell you to.
-  - I store our shared to-do list in TODO.md. Please create it if it doesn't exist already. To-dos should be deleted once complete, but only after I confirm this is ok.
+  - I store our shared to-do list in TODO.md, one per plugin, inside that plugin's directory (for example `joplin-todoist-sync/TODO.md`). A root TODO.md is only for items that apply to the whole repo. Please create it if it doesn't exist already. To-dos should be deleted once complete, but only after I confirm this is ok.
   - When I add a new plug-in to the repo, update CLAUDE.md to ensure current context.
