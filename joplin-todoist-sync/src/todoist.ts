@@ -1,12 +1,17 @@
 // A small client for the Todoist API v1. It takes the `fetch` function as a
 // parameter so it can be tested in Node without the network.
 
+import { TaskState } from './syncRules';
 import { TaskInfo } from './types';
 
 const BASE = 'https://api.todoist.com/api/v1';
 const PAGE_SIZE = 200;
 // A guard against a paging loop that never ends: 50 pages is 10,000 items.
 const MAX_PAGES = 50;
+// How many task ids go into one `ids=` request, and how many single-task
+// requests run at the same time.
+const IDS_PER_REQUEST = 100;
+const LOOKUPS_AT_ONCE = 5;
 
 export interface HttpResponse {
 	status: number;
@@ -58,12 +63,13 @@ export class TodoistClient {
 		this.httpFetch = httpFetch;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw API data
-	private async get(path: string, what: string): Promise<any> {
+	// Sends one request and returns the reply, whatever its status. Only a
+	// rejected token and an unreachable server are turned into errors here.
+	private async send(method: string, path: string, what: string): Promise<{ status: number; text: string }> {
 		let response: HttpResponse;
 		try {
 			response = await this.httpFetch(BASE + path, {
-				method: 'GET',
+				method,
 				headers: { Authorization: `Bearer ${this.token}` },
 			});
 		} catch (error) {
@@ -75,15 +81,27 @@ export class TodoistClient {
 		if (response.status === 401 || response.status === 403) {
 			throw new TodoistError('Todoist rejected the API token. Check it in the Todoist Sync settings.', response.status);
 		}
-		if (response.status < 200 || response.status >= 300) {
-			throw new TodoistError(`Todoist returned an error (${what}, status ${response.status}): ${text.slice(0, 200)}`, response.status);
-		}
+		return { status: response.status, text };
+	}
 
+	private failure(reply: { status: number; text: string }, what: string): TodoistError {
+		return new TodoistError(`Todoist returned an error (${what}, status ${reply.status}): ${reply.text.slice(0, 200)}`, reply.status);
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw API data
+	private parse(reply: { status: number; text: string }, what: string): any {
 		try {
-			return JSON.parse(text);
+			return JSON.parse(reply.text);
 		} catch (error) {
-			throw new TodoistError(`Todoist sent a reply that could not be read (${what}).`, response.status);
+			throw new TodoistError(`Todoist sent a reply that could not be read (${what}).`, reply.status);
 		}
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw API data
+	private async get(path: string, what: string): Promise<any> {
+		const reply = await this.send('GET', path, what);
+		if (reply.status < 200 || reply.status >= 300) throw this.failure(reply, what);
+		return this.parse(reply, what);
 	}
 
 	// Follows `next_cursor` until every page has been read.
@@ -125,5 +143,52 @@ export class TodoistClient {
 			name: String(project.name ?? ''),
 			isInbox: !!project.inbox_project,
 		}));
+	}
+
+	// One task by id, completed or not. Returns null when Todoist has no
+	// such task: it was deleted, or it belongs to another account.
+	public async getTask(id: string): Promise<TaskInfo | null> {
+		const what = 'looking up a task';
+		const reply = await this.send('GET', `/tasks/${encodeURIComponent(id)}`, what);
+		if (reply.status === 404) return null;
+		if (reply.status < 200 || reply.status >= 300) throw this.failure(reply, what);
+		return toTaskInfo(this.parse(reply, what));
+	}
+
+	// What Todoist knows about each of `ids`. The `ids=` request returns
+	// only open tasks, so every id it leaves out is asked for by itself:
+	// that finds the completed ones, and the rest are missing (SPEC.md
+	// section 9.1, item 2).
+	public async getTaskStates(ids: string[]): Promise<Map<string, TaskState>> {
+		const states = new Map<string, TaskState>();
+		const wanted = Array.from(new Set(ids));
+
+		for (let i = 0; i < wanted.length; i += IDS_PER_REQUEST) {
+			const chunk = wanted.slice(i, i + IDS_PER_REQUEST).map(encodeURIComponent).join(',');
+			for (const raw of await this.getAll(`/tasks?ids=${chunk}`, 'looking up tasks')) {
+				const task = toTaskInfo(raw);
+				states.set(task.id, { kind: 'found', task });
+			}
+		}
+
+		const rest = wanted.filter(id => !states.has(id));
+		for (let i = 0; i < rest.length; i += LOOKUPS_AT_ONCE) {
+			const chunk = rest.slice(i, i + LOOKUPS_AT_ONCE);
+			const tasks = await Promise.all(chunk.map(id => this.getTask(id)));
+			chunk.forEach((id, index) => {
+				const task = tasks[index];
+				states.set(id, task ? { kind: 'found', task } : { kind: 'missing' });
+			});
+		}
+
+		return states;
+	}
+
+	// Completes a task. For a recurring task Todoist moves it to its next
+	// occurrence instead and leaves it open.
+	public async closeTask(id: string): Promise<void> {
+		const what = 'closing a task';
+		const reply = await this.send('POST', `/tasks/${encodeURIComponent(id)}/close`, what);
+		if (reply.status < 200 || reply.status >= 300) throw this.failure(reply, what);
 	}
 }

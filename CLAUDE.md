@@ -259,8 +259,17 @@ Restart Joplin after (re)installing either way.
   `details.ts`, `names.ts`, `sendText.ts`, `syncRules.ts`, `types.ts`) with no Joplin or
   network dependency. Step 2 is manual Fetch: three settings, the Fetch command under
   Tools > Todoist Sync, `todoist.ts` (API client, takes `fetch` as a parameter so tests can fake
-  it) and `fetchPlan.ts` (turns tasks into edits). Sync, Send, the automatic first fetch and
+  it) and `fetchPlan.ts` (turns tasks into edits). Send, the automatic first fetch and
   the query block display are not built yet.
+- Step 3 (Sync) is built but not accepted: it still needs the interactive session with Joel
+  (SPEC.md section 7.1). The Sync command looks up every linked task
+  (`TodoistClient.getTaskStates`), and `syncPlan.ts` turns the per-line decisions of
+  `syncRules.ts` into the tasks to close, one edit per changed line and the report. Sync
+  refuses to run, before any Todoist call, on a note that links one task on more than one
+  line, because closing a recurring task twice would also complete its next occurrence.
+  Tasks are closed before the note is written. Sync first fetches any query block that
+  has no `fetched:` line, then syncs. A line whose close failed is left as it
+  was.
 - All note changes go through the CM6 content script `src/editor.ts`, never the data API
   (the open editor ignores data API writes while it has unsaved typing). A command first
   runs `todoistSyncGetState`, which returns the live text and opens a session that records
@@ -274,7 +283,7 @@ Restart Joplin after (re)installing either way.
   edits through a real CodeMirror document). At runtime Joplin supplies it.
 - `npm test` compiles `test/*.test.ts` and the modules they import with
   `tsconfig.test.json` into `build-test/` (git-ignored) and runs them with Node's built-in
-  test runner. The recurring task tests in `test/syncRules.test.ts` are numbered to match
+  test runner. `test/applyEdits.ts` is a helper shared by the tests, not a test file. The recurring task tests in `test/syncRules.test.ts` are numbered to match
   SPEC.md section 7.1.
 - `tools/verify-todoist-api.mjs` checks Todoist API behaviour against a real account. Joel
   runs it himself with `TODOIST_TOKEN` set in his own terminal, and it writes

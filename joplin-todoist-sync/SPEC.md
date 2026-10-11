@@ -1,7 +1,7 @@
 # joplin-todoist-sync: specification
 
-Status: draft 5, 2026-10-11. Build steps 1 and 2 are done. Step 2 (manual Fetch) is waiting
-to be tried in Joplin. Every Todoist API assumption has been
+Status: draft 5, 2026-10-11. Build steps 1 and 2 are done. Step 3 (Sync) is built and
+waiting for the interactive session of section 7.1. Every Todoist API assumption has been
 tested live (section 9.1). A few items remain that can only be checked in the Joplin app
 during the build (section 9.3). Section 12 is the build order.
 
@@ -227,7 +227,13 @@ fetched once, automatically.
 ## 6. Sync
 
 Command: **Sync note with Todoist**. It covers every linked line in the current note, whatever
-the selection. It does not create tasks and does not run query blocks.
+the selection. It does not create tasks. It does not run query blocks either, with one
+exception: a block that has never run (no `fetched:` line) is fetched first, as Fetch would,
+and the note is then synced. So Sync on a new note brings its tasks in.
+
+If a task is linked on more than one line of the note, Sync stops before it asks Todoist
+anything, changes nothing, and lists those lines. Two checked lines for one recurring task
+would otherwise close it twice, which also completes its next occurrence.
 
 ### 6.1 Non-recurring tasks
 
@@ -271,7 +277,8 @@ checking the API token.
 Used by all commands and the automatic fetch:
 
 - **Nothing needs attention**: a brief toast that disappears by itself, for example "Synced
-  12 tasks, 2 completed" or "Fetched 5 tasks".
+  12 tasks, 2 completed" or "Fetched 5 tasks". Fetch gives only the number of tasks it
+  added, not how many matching tasks it left out.
 - **Something was skipped or failed**: a dialog that stays until dismissed, with one line per
   problem giving the task name and the reason, for example "Not found in Todoist: Call the
   plumber" or "Not sent, `@@Jo` matches Joel Berger and John Smith: Email Jo".
@@ -308,7 +315,7 @@ No hidden data is involved. The pinned date is part of the link in the note's te
 | Sync, box unchecked, same date | nothing |
 | Sync, box unchecked, different date | nothing (known gap, below) |
 | Sync, box checked, same date | task is closed once (Todoist advances it), then the link is removed |
-| Sync, box checked, different date | link is removed, Todoist is not called, and the summary says the task had already moved on |
+| Sync, box checked, different date | link is removed, the task is not closed, and the dialog names the task as already moved on |
 | Sync, recurrence has ended and the task is completed | treated as non-recurring: box is checked |
 
 "Nothing" means the box and the task are left alone. The name, priority, project and labels
@@ -362,7 +369,7 @@ off on all of them.
 7. Daily task five days overdue, line date equal to the task's due date, checked: exactly
    one close call.
 8. Line Oct 10. Task postponed in Todoist to Oct 13, then the box is ticked: link removed,
-   no close call, and the summary says the task had already moved on.
+   no close call, and the dialog names the task as already moved on.
 9. The same occurrence linked and checked in two notes. Sync note A: one close, link
    removed. Sync note B: link removed, no close.
 10. Task due twice a day, line `#2026-10-10T09:00`, already moved to 21:00 the same day in
@@ -415,8 +422,8 @@ The submenu is called "Todoist Sync". Each command name says "Todoist" once, so 
 reads well in the command palette, where the submenu name is not shown.
 
 Send and Fetch both add new links, in opposite directions, and each is a deliberate act.
-Sync never creates a task and never adds a line, so it is safe to run on any note at any
-time. They are kept separate for that reason. Keyboard shortcuts and toolbar buttons are
+Sync never creates a task, and adds lines only for a query block that has never run, so
+it is safe to run on any note at any time. They are kept separate for that reason. Keyboard shortcuts and toolbar buttons are
 added in the wrap-up step (see `TODO.md`).
 
 ## 9. Technical approach
@@ -582,10 +589,10 @@ until the one before it is accepted.
 1. **Logic and tests, no Joplin. Done.** Scaffold the plugin. Write the pure modules: note
    parsing, the details formatter, `##`/`@@` matching, and the sync decision function.
    `npm test` covers them, including scenarios 1 to 12 of section 7.1.
-2. **Fetch, manual. Built, to be tried in Joplin.** Settings (token, default filter), the Todoist client, the editor
+2. **Fetch, manual. Done.** Settings (token, default filter), the Todoist client, the editor
    script that applies edits, and the Fetch command. This is the first version to install,
    and it settles check 1 of section 9.3.
-3. **Sync.** Completion, names, details, missing tasks and the recurring rules, with the
+3. **Sync. Built, not yet accepted.** Completion, names, details, missing tasks and the recurring rules, with the
    reporting from section 6.5. Ends with the interactive session described in section 7.1:
    the recurring scenarios against the real account, run together with Joel, who reviews
    each result.

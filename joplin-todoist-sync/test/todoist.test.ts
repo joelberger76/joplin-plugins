@@ -4,9 +4,9 @@ import { HttpFetch, TodoistClient, TodoistError, toTaskInfo } from '../src/todoi
 
 // A fake `fetch` that answers from a list and records what was asked.
 function fake(replies: Array<{ status: number; body: unknown } | Error>) {
-	const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+	const calls: Array<{ url: string; method: string; headers: Record<string, string> }> = [];
 	const httpFetch: HttpFetch = async (url, init) => {
-		calls.push({ url, headers: init.headers });
+		calls.push({ url, method: init.method, headers: init.headers });
 		const reply = replies.shift();
 		if (!reply) throw new Error('no reply left');
 		if (reply instanceof Error) throw reply;
@@ -86,4 +86,52 @@ test('turns failures into messages that can be shown', async () => {
 	assert.match(garbage.message, /could not be read/);
 	// The token never appears in a message.
 	for (const error of [badToken, badFilter, offline, garbage]) assert.ok(!error.message.includes('secret'));
+});
+
+// SPEC.md section 9.1, item 2
+
+test('looks up tasks: open ones together, the rest one by one', async () => {
+	const { httpFetch, calls } = fake([
+		// `ids=` returns only the open task.
+		{ status: 200, body: { results: [{ ...RAW, id: 'open1' }], next_cursor: null } },
+		{ status: 200, body: { ...RAW, id: 'done2', checked: true } },
+		{ status: 404, body: 'Not Found' },
+	]);
+	const states = await new TodoistClient('secret', httpFetch).getTaskStates(['open1', 'done2', 'gone3', 'open1']);
+
+	assert.deepEqual(calls.map(call => call.url.replace('https://api.todoist.com/api/v1', '')), [
+		'/tasks?ids=open1,done2,gone3&limit=200',
+		'/tasks/done2',
+		'/tasks/gone3',
+	]);
+	const open = states.get('open1')!;
+	const done = states.get('done2')!;
+	assert.ok(open.kind === 'found' && !open.task.checked);
+	assert.ok(done.kind === 'found' && done.task.checked);
+	assert.deepEqual(states.get('gone3'), { kind: 'missing' });
+});
+
+test('a rejected token is an error, never "missing"', async () => {
+	const { httpFetch } = fake([
+		{ status: 200, body: { results: [], next_cursor: null } },
+		{ status: 401, body: 'Unauthorized' },
+	]);
+	await assert.rejects(new TodoistClient('secret', httpFetch).getTaskStates(['a1']), /rejected the API token/);
+});
+
+test('a server error while looking up a task is an error, never "missing"', async () => {
+	const { httpFetch } = fake([
+		{ status: 200, body: { results: [], next_cursor: null } },
+		{ status: 500, body: 'Oops' },
+	]);
+	await assert.rejects(new TodoistClient('secret', httpFetch).getTaskStates(['a1']), /status 500/);
+});
+
+test('closes a task with a POST, and reports a failure', async () => {
+	const { httpFetch, calls } = fake([{ status: 204, body: '' }, { status: 404, body: 'Not Found' }]);
+	const client = new TodoistClient('secret', httpFetch);
+	await client.closeTask('a1');
+	assert.equal(calls[0].method, 'POST');
+	assert.equal(calls[0].url, 'https://api.todoist.com/api/v1/tasks/a1/close');
+	await assert.rejects(client.closeTask('a1'), /status 404/);
 });

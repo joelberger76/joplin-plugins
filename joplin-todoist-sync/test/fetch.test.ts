@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { ChangeSet, EditorState } from '@codemirror/state';
-import { resolveEdits, TextEdit } from '../src/edits';
+import { apply } from './applyEdits';
 import { FetchOptions, planFetch, planNewBlock } from '../src/fetchPlan';
 import { parseNote } from '../src/noteParser';
 import { TaskInfo } from '../src/types';
@@ -21,25 +20,6 @@ function task(id: string, content: string, overrides: Partial<TaskInfo> = {}): T
 
 function link(id: string, text = '↗', occurrence = ''): string {
 	return `[${text}](https://app.todoist.com/app/task/${id}${occurrence ? `#${occurrence}` : ''})`;
-}
-
-// Applies edits the way the editor script does: through a real CodeMirror
-// document, with `typing` (if any) done after the snapshot was taken.
-function apply(body: string, edits: TextEdit[], typing?: (state: EditorState) => { from: number; to?: number; insert: string }) {
-	let state = EditorState.create({ doc: body });
-	let changes = ChangeSet.empty(state.doc.length).desc;
-
-	if (typing) {
-		const transaction = state.update({ changes: typing(state) });
-		changes = changes.composeDesc(transaction.changes.desc);
-		state = transaction.state;
-	}
-
-	const resolved = resolveEdits(edits, {
-		mapPos: (pos, assoc) => changes.mapPos(pos, assoc),
-		slice: (from, to) => state.sliceDoc(from, to),
-	});
-	return { text: state.update({ changes: resolved.changes }).state.doc.toString(), skipped: resolved.skippedGroups };
 }
 
 function fetchInto(body: string, tasks: TaskInfo[]) {
