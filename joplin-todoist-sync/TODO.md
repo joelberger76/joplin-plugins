@@ -1,24 +1,5 @@
 # TODO
 
-## Where we left off (2026-10-12)
-
-All seven build steps of SPEC.md section 12 are done and accepted by Joel. Step 6 (Display)
-and step 7 (Wrap-up) were accepted on 2026-10-12, each after rounds in the app against his
-real Todoist account. The "Remove dead Todoist links" command was built and then dropped
-at his request.
-
-Not seen in the app: the tag that stays hidden before a Todoist link in the rendered note
-(the `joplin-inline-tag-style` change), the dialog for a failed automatic fetch, a command
-started while an automatic fetch is running, and the Send failures that only unit tests
-cover (Todoist refusing a line, a lost connection, switching notes while sending, editing
-a line while it is sent).
-
-No test data is left in Todoist. For any later interactive session, Claude creates a
-throwaway project through the Todoist connector and deletes it afterwards.
-
-On another computer: install `publish/com.joelberger.todoist-sync.jpl`, restart Joplin, and
-set the API token under Options > Todoist Sync if it did not come across.
-
 ## v2
 
 - [ ] Picker for ambiguous `##` and `@@` names. When a token matches more than one project
