@@ -19,10 +19,27 @@ const SYNC_COMMAND = 'todoistSyncNote';
 const NEEDS_MARKDOWN_EDITOR = 'Todoist Sync works in the Markdown editor. Open the note there and try again.';
 const NEEDS_TOKEN = 'Set your Todoist API token first, under Options > Todoist Sync.';
 
+let problemDialog: string | null = null;
+
+function escapeHtml(text: string): string {
+	return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // Shown when a command can't run or when something was skipped. It stays
-// until dismissed (SPEC.md section 6.5).
+// until dismissed (SPEC.md section 6.5). A dialog of our own, because
+// showMessageBox always adds a Cancel button that would do nothing here.
+// Joplin sizes a dialog from #joplin-plugin-content, which is 200px wide
+// unless given a width itself.
 async function showProblem(message: string) {
-	await joplin.views.dialogs.showMessageBox(message);
+	const dialogs = joplin.views.dialogs;
+	if (!problemDialog) {
+		problemDialog = await dialogs.create('todoistSyncProblem');
+		await dialogs.setButtons(problemDialog, [{ id: 'ok', title: 'OK' }]);
+	}
+	const paragraphs = message.split(/\n{2,}/).map(part =>
+		`<p style="margin: 0 0 12px">${escapeHtml(part).replace(/\n/g, '<br>')}</p>`);
+	await dialogs.setHtml(problemDialog, `<style>#joplin-plugin-content { width: 440px; }</style><div style="font-family: var(--joplin-font-family, sans-serif); font-size: 14px; line-height: 1.45; color: var(--joplin-color); overflow-wrap: anywhere">${paragraphs.join('')}</div>`);
+	await dialogs.open(problemDialog);
 }
 
 async function showDone(message: string) {

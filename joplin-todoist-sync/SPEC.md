@@ -315,7 +315,7 @@ No hidden data is involved. The pinned date is part of the link in the note's te
 | Sync, box unchecked, same date | nothing |
 | Sync, box unchecked, different date | nothing (known gap, below) |
 | Sync, box checked, same date | task is closed once (Todoist advances it), then the link is removed |
-| Sync, box checked, different date | link is removed, the task is not closed, and the dialog names the task as already moved on |
+| Sync, box checked, different date | link is removed, the task is not closed, and the dialog names the task as already completed or rescheduled in Todoist |
 | Sync, recurrence has ended and the task is completed | treated as non-recurring: box is checked |
 
 "Nothing" means the box and the task are left alone. The name, priority, project and labels
@@ -369,7 +369,7 @@ off on all of them.
 7. Daily task five days overdue, line date equal to the task's due date, checked: exactly
    one close call.
 8. Line Oct 10. Task postponed in Todoist to Oct 13, then the box is ticked: link removed,
-   no close call, and the dialog names the task as already moved on.
+   no close call, and the dialog names the task as already completed or rescheduled in Todoist.
 9. The same occurrence linked and checked in two notes. Sync note A: one close, link
    removed. Sync note B: link removed, no close.
 10. Task due twice a day, line `#2026-10-10T09:00`, already moved to 21:00 the same day in
@@ -592,10 +592,11 @@ until the one before it is accepted.
 2. **Fetch, manual. Done.** Settings (token, default filter), the Todoist client, the editor
    script that applies edits, and the Fetch command. This is the first version to install,
    and it settles check 1 of section 9.3.
-3. **Sync. Built, not yet accepted.** Completion, names, details, missing tasks and the recurring rules, with the
+3. **Sync. Done.** Completion, names, details, missing tasks and the recurring rules, with the
    reporting from section 6.5. Ends with the interactive session described in section 7.1:
    the recurring scenarios against the real account, run together with Joel, who reviews
-   each result.
+   each result. Joel signed off on 2026-10-11, with scenarios 1 to 14 and the
+   cases of section 6.1 passed. Scenario 15 is tested with step 5.
 4. **Send.** Tokens, escaping, subtasks, default project.
 5. **Automatic first fetch.** The note-open hook and the template exclusions. Try it with the
    Journal and Templates plugins.

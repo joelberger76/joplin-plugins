@@ -84,7 +84,7 @@ test('a whole note: every kind of line in one Sync', () => {
 	].join('\n'));
 	assert.equal(result.report.summary, 'Synced 7 tasks: 2 closed in Todoist, 1 checked off in the note, 1 updated.');
 	assert.deepEqual(result.report.problems, [
-		'Already moved on in Todoist, so nothing was closed and the link was removed: Water plants',
+		'Already completed or rescheduled in Todoist, so the task was left as it is. Link removed: Water plants',
 		'Not found in Todoist: Deleted in Todoist',
 	]);
 });
@@ -96,6 +96,19 @@ test('nothing to change', () => {
 	assert.equal(result.text, body);
 	assert.equal(result.report.summary, 'Synced 2 tasks, nothing to change.');
 	assert.deepEqual(result.report.problems, []);
+});
+
+test('a problem line alone does not say "nothing to change"', () => {
+	const body = `- [ ] One ${link('a1')}\n- [x] Water plants ${link('f6', '↗ ↻', '2026-10-10')}`;
+	const result = sync(body, statesOf(
+		task('a1', 'One'),
+		task('f6', 'Water plants', { due: { date: '2026-10-17', isRecurring: true } }),
+	));
+	assert.deepEqual(result.closes, []);
+	assert.equal(result.report.summary, 'Synced 2 tasks.');
+	assert.deepEqual(result.report.problems, [
+		'Already completed or rescheduled in Todoist, so the task was left as it is. Link removed: Water plants',
+	]);
 });
 
 test('7.1 #1 and #9 run twice: the second Sync has no linked line left and closes nothing', () => {

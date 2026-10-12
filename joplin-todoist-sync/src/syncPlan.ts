@@ -152,7 +152,7 @@ export function reportSync(items: SyncItem[], failedCloses: Map<string, string>,
 			continue;
 		}
 
-		if (decision.notice === 'movedOn') problems.push(`Already moved on in Todoist, so nothing was closed and the link was removed: ${name}`);
+		if (decision.notice === 'movedOn') problems.push(`Already completed or rescheduled in Todoist, so the task was left as it is. Link removed: ${name}`);
 		else if (decision.checkBox) checked++;
 		else if (decision.refresh && item.newText !== item.line.text) updated++;
 	}
@@ -163,6 +163,10 @@ export function reportSync(items: SyncItem[], failedCloses: Map<string, string>,
 	if (updated) parts.push(`${updated} updated`);
 
 	const total = count(items.length, 'task', 'tasks');
-	const summary = parts.length ? `Synced ${total}: ${parts.join(', ')}.` : `Synced ${total}, nothing to change.`;
+	// "Nothing to change" would contradict a problem line that reports a
+	// removed link.
+	let summary = `Synced ${total}.`;
+	if (parts.length) summary = `Synced ${total}: ${parts.join(', ')}.`;
+	else if (!problems.length) summary = `Synced ${total}, nothing to change.`;
 	return { summary, problems };
 }

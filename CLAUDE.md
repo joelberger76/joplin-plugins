@@ -255,14 +255,14 @@ Restart Joplin after (re)installing either way.
 - In progress. `SPEC.md` in the plugin directory is the source of truth for behaviour, and
   its section 12 is the build order with the current status. Read it before changing
   anything. `TODO.md` there holds v2 ideas and things to do during the build.
-- Build steps 1 and 2 are done. Step 1 is the logic modules in `src/` (`noteParser.ts`,
+- Build steps 1 to 3 are done. Step 1 is the logic modules in `src/` (`noteParser.ts`,
   `details.ts`, `names.ts`, `sendText.ts`, `syncRules.ts`, `types.ts`) with no Joplin or
   network dependency. Step 2 is manual Fetch: three settings, the Fetch command under
   Tools > Todoist Sync, `todoist.ts` (API client, takes `fetch` as a parameter so tests can fake
   it) and `fetchPlan.ts` (turns tasks into edits). Send, the automatic first fetch and
   the query block display are not built yet.
-- Step 3 (Sync) is built but not accepted: it still needs the interactive session with Joel
-  (SPEC.md section 7.1). The Sync command looks up every linked task
+- Step 3 (Sync) was accepted by Joel on 2026-10-11, after the interactive session of
+  SPEC.md section 7.1. The Sync command looks up every linked task
   (`TodoistClient.getTaskStates`), and `syncPlan.ts` turns the per-line decisions of
   `syncRules.ts` into the tasks to close, one edit per changed line and the report. Sync
   refuses to run, before any Todoist call, on a note that links one task on more than one
@@ -270,6 +270,10 @@ Restart Joplin after (re)installing either way.
   Tasks are closed before the note is written. Sync first fetches any query block that
   has no `fetched:` line, then syncs. A line whose close failed is left as it
   was.
+- Problems are reported in a plugin dialog with one OK button (`showProblem` in
+  `index.ts`), not `showMessageBox`, which always adds a Cancel button. Joplin sizes a
+  plugin dialog from `#joplin-plugin-content`, which stays 200px wide unless that element
+  itself is given a width, so the dialog's HTML sets it in a `<style>` tag.
 - All note changes go through the CM6 content script `src/editor.ts`, never the data API
   (the open editor ignores data API writes while it has unsaved typing). A command first
   runs `todoistSyncGetState`, which returns the live text and opens a session that records
@@ -289,8 +293,10 @@ Restart Joplin after (re)installing either way.
   runs it himself with `TODOIST_TOKEN` set in his own terminal, and it writes
   `tools/verify-todoist-api.out.txt` (git-ignored) for Claude to read. Never ask for the
   token.
-- The recurring task rules are to be tested interactively with Joel against his real
-  account before Sync is accepted (SPEC.md section 7.1).
+- Interactive tests against Joel's real account use a throwaway Todoist project that Claude
+  creates through the Todoist connector and deletes afterwards. Joel works in Joplin, Claude
+  does and checks the Todoist side. Scenario 15 of SPEC.md section 7.1 is still to be run
+  this way, with build step 5.
 
 ## My Preferences
   - Writing style
