@@ -2,7 +2,7 @@
 	"manifest_version": 1,
 	"id": "com.joelberger.todoist-sync",
 	"app_min_version": "3.0",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"name": "Todoist Sync",
 	"description": "Sends checkboxes in the current note to Todoist as tasks, fetches Todoist tasks into the note, and keeps the two in step.",
 	"author": "Joel Berger",
@@ -13,6 +13,6 @@
 	"screenshots": [],
 	"icons": {},
 	"promo_tile": {},
-	"_publish_hash": "sha256:3441f9e8304a8dd1abbca7f298076c4a8701263a167ca48bdb43140ad8654883",
-	"_publish_commit": "main:c95193bbaa68c8e54463f9c006a77b003379fa97"
+	"_publish_hash": "sha256:6cd394f1a5d040c21b9edd2ea253f4f78cca57aa54f5ea67482ee42d55ef77c3",
+	"_publish_commit": "main:3f0ff67a85074b5f548d6be4c45bba303392d659"
 }
