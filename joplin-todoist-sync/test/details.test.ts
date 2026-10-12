@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { formatLinkText, isDueByToday, isOccurrence, occurrenceOf, parseDue, priorityLabel } from '../src/details';
+import { pad } from '../src/text';
+import { formatLinkText, isCurrentOccurrence, isDueByToday, isOccurrence, occurrenceOf, parseDue, priorityLabel } from '../src/details';
 import { TaskInfo } from '../src/types';
 
 const TODAY = new Date(2026, 9, 11);
@@ -61,6 +62,25 @@ test('names the occurrence of a recurring task', () => {
 	// Only recurring tasks have one.
 	assert.equal(occurrenceOf({ date: '2026-10-12', isRecurring: false }), null);
 	assert.equal(occurrenceOf(null), null);
+});
+
+test('a time in a fixed timezone is named in UTC, wherever the device is', () => {
+	const due = { date: '2026-10-12T14:00:00Z', isRecurring: true };
+	assert.equal(occurrenceOf(due), '2026-10-12T14:00Z');
+	assert.ok(isOccurrence('2026-10-12T14:00Z'));
+	assert.ok(isCurrentOccurrence('2026-10-12T14:00Z', due));
+	assert.ok(!isCurrentOccurrence('2026-10-13T14:00Z', due));
+
+	// A link written before that change has the time in local time, and
+	// still counts on a device in the same timezone.
+	const local = new Date(Date.UTC(2026, 9, 12, 14, 0));
+	const old = `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}T${pad(local.getHours())}:${pad(local.getMinutes())}`;
+	assert.ok(isCurrentOccurrence(old, due));
+
+	// Whole-day and floating dues are as before.
+	assert.ok(isCurrentOccurrence('2026-10-12', { date: '2026-10-12', isRecurring: true }));
+	assert.ok(!isCurrentOccurrence('2026-10-12', { date: '2026-10-13', isRecurring: true }));
+	assert.ok(!isCurrentOccurrence('2026-10-12', { date: '2026-10-12', isRecurring: false }));
 });
 
 test('recognizes an occurrence it wrote', () => {

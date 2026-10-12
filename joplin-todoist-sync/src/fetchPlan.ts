@@ -19,8 +19,9 @@ export interface FetchOptions {
 
 export interface FetchPlan {
 	edits: TextEdit[];
-	// Tasks written into the note.
+	// Tasks to write into the note, in all and for each group of edits.
 	added: number;
+	addedByGroup: Map<string, number>;
 	// Matching tasks left out because the note already links them.
 	alreadyLinked: number;
 	// Recurring tasks left out because they are not due yet.
@@ -67,7 +68,7 @@ function linkedIds(note: ParsedNote): Set<string> {
 // default filter. It is written into the block, so that the note says
 // what was fetched.
 export function planFetch(note: ParsedNote, results: Array<{ block: QueryBlock; tasks: TaskInfo[]; filter?: string }>, options: FetchOptions): FetchPlan {
-	const plan: FetchPlan = { edits: [], added: 0, alreadyLinked: 0, notDue: 0 };
+	const plan: FetchPlan = { edits: [], added: 0, addedByGroup: new Map(), alreadyLinked: 0, notDue: 0 };
 	const lines = note.lines;
 	const starts = lineStarts(lines);
 	const linked = linkedIds(note);
@@ -78,6 +79,7 @@ export function planFetch(note: ParsedNote, results: Array<{ block: QueryBlock; 
 	for (const { block, tasks, filter } of ordered) {
 		const group = `block@${block.startLine}`;
 		const newLines = choose(tasks, linked, options, plan);
+		plan.addedByGroup.set(group, newLines.length);
 
 		const lineWith = (key: string) => {
 			for (let i = block.startLine + 1; i < block.endLine; i++) {
@@ -159,7 +161,7 @@ export function planFetch(note: ParsedNote, results: Array<{ block: QueryBlock; 
 // Plans a fetch into a note with no query block: a new block is written at
 // the cursor, already marked as fetched, with its tasks below it.
 export function planNewBlock(note: ParsedNote, cursorLine: number, filter: string, tasks: TaskInfo[], options: FetchOptions): FetchPlan {
-	const plan: FetchPlan = { edits: [], added: 0, alreadyLinked: 0, notDue: 0 };
+	const plan: FetchPlan = { edits: [], added: 0, addedByGroup: new Map(), alreadyLinked: 0, notDue: 0 };
 	const lines = note.lines;
 	const starts = lineStarts(lines);
 	const at = Math.min(Math.max(cursorLine, 0), lines.length - 1);
@@ -174,6 +176,7 @@ export function planNewBlock(note: ParsedNote, cursorLine: number, filter: strin
 
 	const check = { checkFrom: starts[at], checkTo: starts[at] + lines[at].length, expected: lines[at] };
 	const group = 'newBlock';
+	plan.addedByGroup.set(group, plan.added);
 
 	if (lines[at].trim() === '') {
 		// On an empty line: the block takes its place. The empty line is
@@ -190,4 +193,10 @@ export function planNewBlock(note: ParsedNote, cursorLine: number, filter: strin
 	}
 
 	return plan;
+}
+
+// How many tasks ended up in the note, given the groups the editor skipped
+// because their text was edited while Todoist answered.
+export function writtenCount(plan: FetchPlan, skippedGroups: string[]): number {
+	return skippedGroups.reduce((count, group) => count - (plan.addedByGroup.get(group) ?? 0), plan.added);
 }

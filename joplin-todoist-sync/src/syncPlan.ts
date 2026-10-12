@@ -2,9 +2,10 @@
 // takes the note text and what Todoist said about each linked task, and
 // returns the tasks to close, the edits and the report.
 
-import { lineStarts, TextEdit } from './edits';
+import { lineGroup, lineStarts, TextEdit } from './edits';
 import { ParsedNote, TaskLine } from './noteParser';
 import { decideSync, rewriteLine, SyncDecision, syncLineOf, TaskState } from './syncRules';
+import { plural } from './text';
 import { TaskInfo } from './types';
 
 export interface SyncOptions {
@@ -31,10 +32,6 @@ export interface SyncReport {
 	summary: string;
 	// One line per thing that needs attention. Empty when nothing does.
 	problems: string[];
-}
-
-function groupOf(line: TaskLine): string {
-	return `line@${line.lineNumber}`;
 }
 
 // Decides every linked line of the note. `states` comes from
@@ -110,14 +107,10 @@ export function syncEdits(note: ParsedNote, items: SyncItem[]): TextEdit[] {
 		if (item.newText === line.text) continue;
 		const from = starts[line.lineNumber];
 		const to = from + line.text.length;
-		edits.push({ from, to, insert: item.newText, checkFrom: from, checkTo: to, expected: line.text, group: groupOf(line) });
+		edits.push({ from, to, insert: item.newText, checkFrom: from, checkTo: to, expected: line.text, group: lineGroup(line) });
 	}
 
 	return edits;
-}
-
-function count(amount: number, one: string, many: string): string {
-	return `${amount} ${amount === 1 ? one : many}`;
 }
 
 // What to tell the user (SPEC.md section 6.5).
@@ -147,7 +140,7 @@ export function reportSync(items: SyncItem[], failedCloses: Map<string, string>,
 			}
 			closed.add(item.taskId);
 		}
-		if (item.newText !== item.line.text && skipped.has(groupOf(item.line))) {
+		if (item.newText !== item.line.text && skipped.has(lineGroup(item.line))) {
 			problems.push(`Edited while syncing, so the line was not updated: ${name}`);
 			continue;
 		}
@@ -162,7 +155,7 @@ export function reportSync(items: SyncItem[], failedCloses: Map<string, string>,
 	if (checked) parts.push(`${checked} checked off in the note`);
 	if (updated) parts.push(`${updated} updated`);
 
-	const total = count(items.length, 'task', 'tasks');
+	const total = plural(items.length, 'task');
 	// "Nothing to change" would contradict a problem line that reports a
 	// removed link.
 	let summary = `Synced ${total}.`;

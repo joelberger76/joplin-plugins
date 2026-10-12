@@ -4,10 +4,11 @@
 // tested in Node without the network.
 
 import { formatLinkText, occurrenceOf } from './details';
-import { lineStarts, TextEdit } from './edits';
+import { lineGroup, lineStarts, TextEdit } from './edits';
 import { matchName } from './names';
 import { formatTaskLine, LIST_ITEM, ParsedNote, taskUrl, TaskLine } from './noteParser';
 import { buildQuickAdd, cleanName, SendTokens, splitTokens } from './sendText';
+import { plural } from './text';
 import { TodoistError } from './todoist';
 import { TaskInfo } from './types';
 
@@ -75,14 +76,6 @@ export interface SendOptions {
 }
 
 const PARENT_NOT_SENT = 'Not sent, because the line it is under was not sent';
-
-function groupOf(line: TaskLine): string {
-	return `line@${line.lineNumber}`;
-}
-
-function plural(count: number, word: string): string {
-	return `${count} ${word}${count === 1 ? '' : 's'}`;
-}
 
 function listOf(names: string[]): string {
 	if (names.length < 2) return names.join('');
@@ -297,7 +290,7 @@ export function sendEdits(note: ParsedNote, sent: SentLine[], options: SendOptio
 		const insert = formatTaskLine({ ...line, name: task.content, link: { text, taskId: task.id, occurrence: occurrenceOf(task.due) } });
 		const from = starts[line.lineNumber];
 		const to = from + line.text.length;
-		return { from, to, insert, checkFrom: from, checkTo: to, expected: line.text, group: groupOf(line) };
+		return { from, to, insert, checkFrom: from, checkTo: to, expected: line.text, group: lineGroup(line) };
 	});
 }
 
@@ -307,7 +300,7 @@ export function sendEdits(note: ParsedNote, sent: SentLine[], options: SendOptio
 export function reportSend(sent: SentLine[], problems: string[], skippedGroups: string[]): { summary: string; problems: string[] } {
 	const skipped = new Set(skippedGroups);
 	const unlinked = sent
-		.filter(({ line }) => skipped.has(groupOf(line)))
+		.filter(({ line }) => skipped.has(lineGroup(line)))
 		.map(({ line, task }) => `Created, but its line was edited while sending, so it has no link (${taskUrl(task.id)}): ${line.name}`);
 
 	return {

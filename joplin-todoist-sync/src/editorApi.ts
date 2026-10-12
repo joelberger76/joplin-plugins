@@ -4,6 +4,8 @@
 
 export const GET_STATE_COMMAND = 'todoistSyncGetState';
 export const APPLY_EDITS_COMMAND = 'todoistSyncApplyEdits';
+// Ends the session that reading the state opened, when no edits follow.
+export const CLOSE_SESSION_COMMAND = 'todoistSyncCloseSession';
 // Tells the editor script to ask for the display settings again.
 export const REFRESH_DISPLAY_COMMAND = 'todoistSyncRefreshDisplay';
 

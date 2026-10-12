@@ -140,7 +140,9 @@ function readBlock(lines: string[], startLine: number, endLine: number): QueryBl
 	return { startLine, endLine, ...blockFields(lines.slice(startLine + 1, endLine)) };
 }
 
-export function parseNote(body: string): ParsedNote {
+// `blocksOnly` leaves the task lines unread, for the editor, which looks
+// for the query blocks on every change of the text.
+export function parseNote(body: string, blocksOnly = false): ParsedNote {
 	const lines = body.split('\n');
 	const taskLines: TaskLine[] = [];
 	const queryBlocks: QueryBlock[] = [];
@@ -171,6 +173,7 @@ export function parseNote(body: string): ParsedNote {
 			continue;
 		}
 
+		if (blocksOnly) continue;
 		const taskLine = parseTaskLine(line, i);
 		if (taskLine) taskLines.push(taskLine);
 	}

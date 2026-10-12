@@ -85,9 +85,14 @@ visible text. It sits at the end of the link's URL, after a `#`:
 ```
 https://app.todoist.com/app/task/6XGgmFVcrG5RRjVr#2026-10-12
 https://app.todoist.com/app/task/6XGgmFVcrG5RRjVr#2026-10-12T09:30
+https://app.todoist.com/app/task/6XGgmFVcrG5RRjVr#2026-10-12T14:00Z
 ```
 
 - The second form is for a task due at a time of day.
+- The third form is for a time in a fixed timezone. It is in UTC, so it reads the same on
+  a device in another timezone. Links written before 2026-10-12 have such a time in the
+  second form, in local time, and Sync still accepts that on a device in the same
+  timezone.
 - Todoist ignores that part of the URL, so the link opens the task as usual (checked by
   Joel on 2026-10-11).
 - It is written by Fetch or Send and is **pinned**: Sync never refreshes it, because it
@@ -569,6 +574,9 @@ still need a live test.
 
    Sync fetches all linked ids in one `ids=` request, then asks for each missing id
    individually: 200 with `checked: true` means completed, 404 means not found.
+   An id Todoist can't read at all (400, not checked against the live API) is handled as
+   not found. If the `ids=` request itself is answered with 400, every id in it is asked
+   for individually.
    Closing a recurring task advances its due date and leaves it open, as section 7 assumes.
    Completing a recurring task raises its `completed_count` by one, and postponing it
    raises `postponed_count` instead. The completed-tasks list does not include completed

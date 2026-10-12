@@ -1,21 +1,14 @@
 // Works out what "Remove Todoist links" does to a note (SPEC.md section
 // 6.4). Pure: it takes the note and the selection.
 
-import { lineStarts, TextEdit } from './edits';
+import { lineGroup, lineStarts, TextEdit } from './edits';
 import { formatTaskLine, ParsedNote, TaskLine } from './noteParser';
+import { plural } from './text';
 
 // Zero-based line numbers, both included.
 export interface UnlinkScope {
 	fromLine: number;
 	toLine: number;
-}
-
-function groupOf(line: TaskLine): string {
-	return `line@${line.lineNumber}`;
-}
-
-function plural(count: number, word: string): string {
-	return `${count} ${word}${count === 1 ? '' : 's'}`;
 }
 
 function nameOf(line: TaskLine): string {
@@ -42,7 +35,7 @@ export function unlinkEdits(note: ParsedNote, lines: TaskLine[]): TextEdit[] {
 	return lines.map(line => {
 		const from = starts[line.lineNumber];
 		const to = from + line.text.length;
-		return { from, to, insert: formatTaskLine({ ...line, link: null }), checkFrom: from, checkTo: to, expected: line.text, group: groupOf(line) };
+		return { from, to, insert: formatTaskLine({ ...line, link: null }), checkFrom: from, checkTo: to, expected: line.text, group: lineGroup(line) };
 	});
 }
 
@@ -50,7 +43,7 @@ export function unlinkEdits(note: ParsedNote, lines: TaskLine[]): TextEdit[] {
 // editor reported as skipped, because the line was edited meanwhile.
 export function reportUnlink(lines: TaskLine[], skippedGroups: string[]): { summary: string; problems: string[] } {
 	const skipped = new Set(skippedGroups);
-	const kept = lines.filter(line => skipped.has(groupOf(line)));
+	const kept = lines.filter(line => skipped.has(lineGroup(line)));
 	return {
 		summary: `Removed ${plural(lines.length - kept.length, 'link')}.`,
 		problems: kept.map(line => `Edited meanwhile, so its link was left: ${nameOf(line)}`),

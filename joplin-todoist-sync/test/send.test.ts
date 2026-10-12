@@ -275,6 +275,36 @@ test('a line edited while sending is reported with its task', async () => {
 	});
 });
 
+test('text typed at either end of a line while sending leaves it unlinked', async () => {
+	const body = ['- [ ] One', '- [ ] Two'].join('\n');
+	const note = parseNote(body);
+	const result = await runSend(planSend(note, sendCandidates(note, null), LISTS).items, fakeTodoist().api);
+	const edits = sendEdits(note, result.sent, { showDetails: true, projectNames: PROJECT_NAMES });
+
+	// A link written here would end up in the middle of the line.
+	const atEnd = apply(body, edits, () => ({ from: 9, insert: ' and more' }));
+	assert.deepEqual(atEnd.skipped, ['line@0']);
+	assert.equal(atEnd.text, ['- [ ] One and more', `- [ ] Two ${link('t2')}`].join('\n'));
+
+	const atNoteEnd = apply(body, edits, () => ({ from: body.length, insert: ' and more' }));
+	assert.deepEqual(atNoteEnd.skipped, ['line@1']);
+
+	const atStart = apply(body, edits, () => ({ from: 10, insert: 'x' }));
+	assert.deepEqual(atStart.skipped, ['line@1']);
+	assert.equal(atStart.text, [`- [ ] One ${link('t1')}`, 'x- [ ] Two'].join('\n'));
+});
+
+test('a new line typed after a line while sending does not get in the way', async () => {
+	const body = ['- [ ] One', '- [ ] Two'].join('\n');
+	const note = parseNote(body);
+	const result = await runSend(planSend(note, sendCandidates(note, null), LISTS).items, fakeTodoist().api);
+	const edits = sendEdits(note, result.sent, { showDetails: true, projectNames: PROJECT_NAMES });
+
+	const applied = apply(body, edits, () => ({ from: 9, insert: '\n- [ ] Between' }));
+	assert.deepEqual(applied.skipped, []);
+	assert.equal(applied.text, [`- [ ] One ${link('t1')}`, '- [ ] Between', `- [ ] Two ${link('t2')}`].join('\n'));
+});
+
 test('typing elsewhere while sending does not get in the way', async () => {
 	const body = ['Intro', '- [ ] One'].join('\n');
 	const note = parseNote(body);

@@ -1,7 +1,7 @@
 // What Sync does with one linked line (SPEC.md sections 6 and 7). This is
 // a pure decision: it calls nothing and changes nothing.
 
-import { formatLinkText, isDueByToday, isOccurrence, occurrenceOf } from './details';
+import { formatLinkText, isCurrentOccurrence, isDueByToday, isOccurrence, occurrenceOf } from './details';
 import { formatTaskLine, TaskLine } from './noteParser';
 import { TaskInfo } from './types';
 
@@ -72,7 +72,7 @@ export function decideSync(line: SyncLine, state: TaskState, today: Date): SyncD
 	// occurrence. With no readable occurrence, fall back to "due today or
 	// earlier". Either way the line is finished, so the link goes.
 	const stillWaiting = isOccurrence(line.occurrence)
-		? line.occurrence === occurrenceOf(task.due)
+		? isCurrentOccurrence(line.occurrence, task.due)
 		: isDueByToday(task.due, today);
 
 	return {

@@ -13,12 +13,12 @@ function normalize(name: string): string {
 
 // Finds the one name `token` refers to. An exact match wins, then a single
 // name that starts with the token, then a single name that contains it.
-// More than one match at the same step is ambiguous, never a guess.
+// More than one match at the same step is ambiguous, never a guess. That
+// includes two projects with the same name, which Todoist allows.
 export function matchName(token: string, names: string[]): NameMatch {
 	const wanted = normalize(token);
 	if (!wanted) return { kind: 'none' };
 
-	const unique = Array.from(new Set(names));
 	const steps: Array<(name: string) => boolean> = [
 		name => name === wanted,
 		name => name.startsWith(wanted),
@@ -26,7 +26,7 @@ export function matchName(token: string, names: string[]): NameMatch {
 	];
 
 	for (const step of steps) {
-		const found = unique.filter(name => step(normalize(name)));
+		const found = names.filter(name => step(normalize(name)));
 		if (found.length === 1) return { kind: 'match', name: found[0] };
 		if (found.length > 1) return { kind: 'ambiguous', candidates: found };
 	}

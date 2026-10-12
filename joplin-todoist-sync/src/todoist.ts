@@ -200,11 +200,12 @@ export class TodoistClient {
 	}
 
 	// One task by id, completed or not. Returns null when Todoist has no
-	// such task: it was deleted, or it belongs to another account.
+	// such task: it was deleted, it belongs to another account, or the id
+	// is not one Todoist can read (400), as with a mistyped link.
 	public async getTask(id: string): Promise<TaskInfo | null> {
 		const what = 'looking up a task';
 		const reply = await this.send('GET', `/tasks/${encodeURIComponent(id)}`, what);
-		if (reply.status === 404) return null;
+		if (reply.status === 404 || reply.status === 400) return null;
 		if (reply.status < 200 || reply.status >= 300) throw this.failure(reply, what);
 		return toTaskInfo(this.parse(reply, what));
 	}
@@ -212,14 +213,23 @@ export class TodoistClient {
 	// What Todoist knows about each of `ids`. The `ids=` request returns
 	// only open tasks, so every id it leaves out is asked for by itself:
 	// that finds the completed ones, and the rest are missing (SPEC.md
-	// section 9.1, item 2).
+	// section 9.1, item 2). If Todoist rejects the `ids=` request, which
+	// one id it can't read is enough for, all of its ids are asked for one
+	// by one, so that only the bad one ends up missing.
 	public async getTaskStates(ids: string[]): Promise<Map<string, TaskState>> {
 		const states = new Map<string, TaskState>();
 		const wanted = Array.from(new Set(ids));
 
 		for (let i = 0; i < wanted.length; i += IDS_PER_REQUEST) {
 			const chunk = wanted.slice(i, i + IDS_PER_REQUEST).map(encodeURIComponent).join(',');
-			for (const raw of await this.getAll(`/tasks?ids=${chunk}`, 'looking up tasks')) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw API data
+			let found: any[] = [];
+			try {
+				found = await this.getAll(`/tasks?ids=${chunk}`, 'looking up tasks');
+			} catch (error) {
+				if (!(error instanceof TodoistError && error.status === 400)) throw error;
+			}
+			for (const raw of found) {
 				const task = toTaskInfo(raw);
 				states.set(task.id, { kind: 'found', task });
 			}

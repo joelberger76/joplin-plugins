@@ -3,7 +3,9 @@
 // Nothing here depends on CodeMirror or markdown-it, so it can be tested in
 // Node.
 
+import { lineStarts } from './edits';
 import { parseNote } from './noteParser';
+import { escapeHtml } from './text';
 
 // A query block in the editor, by character offsets: from the start of its
 // opening fence line to the end of its closing fence line.
@@ -29,15 +31,10 @@ export function chipHint(filter: string | null, fetched: string | null): string 
 
 // Every query block of the note, in order.
 export function blockRanges(body: string): BlockRange[] {
-	const parsed = parseNote(body);
+	const parsed = parseNote(body, true);
 	if (!parsed.queryBlocks.length) return [];
 
-	const starts: number[] = [];
-	let offset = 0;
-	for (const line of parsed.lines) {
-		starts.push(offset);
-		offset += line.length + 1;
-	}
+	const starts = lineStarts(parsed.lines);
 
 	return parsed.queryBlocks.map(block => ({
 		from: starts[block.startLine],
@@ -51,10 +48,6 @@ export function blockRanges(body: string): BlockRange[] {
 // either end of a block counts, so the block opens as soon as it is reached.
 export function collapsedBlocks(blocks: BlockRange[], selection: Array<{ from: number; to: number }>): BlockRange[] {
 	return blocks.filter(block => !selection.some(range => range.from <= block.to && range.to >= block.from));
-}
-
-function escapeHtml(text: string): string {
-	return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // Whether a fenced code block's info string makes it a query block.

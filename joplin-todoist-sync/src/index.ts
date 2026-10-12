@@ -2,13 +2,14 @@ import joplin from 'api';
 import { ContentScriptType, MenuItemLocation, SettingItemType, ToastType, ToolbarButtonLocation } from 'api/types';
 import { hasBlockToFetch, isTemplate, namesIn, sameText } from './autoFetch';
 import { sortForNote } from './fetchOrder';
-import { APPLY_EDITS_COMMAND, ApplyResult, DisplaySettings, EditorState, GET_DISPLAY_MESSAGE, GET_STATE_COMMAND, REFRESH_DISPLAY_COMMAND } from './editorApi';
+import { APPLY_EDITS_COMMAND, ApplyResult, CLOSE_SESSION_COMMAND, DisplaySettings, EditorState, GET_DISPLAY_MESSAGE, GET_STATE_COMMAND, REFRESH_DISPLAY_COMMAND } from './editorApi';
 import { TextEdit } from './edits';
-import { FetchOptions, FetchPlan, planFetch, planNewBlock } from './fetchPlan';
+import { FetchOptions, FetchPlan, planFetch, planNewBlock, writtenCount } from './fetchPlan';
 import { matchName } from './names';
 import { parseNote, QueryBlock } from './noteParser';
 import { planSend, reportSend, runSend, sendCandidates, sendEdits, SendScope } from './sendPlan';
 import { duplicateLinks, planSync, reportSync, syncEdits, tasksToClose, writableItems } from './syncPlan';
+import { escapeHtml, pad, plural } from './text';
 import { HttpFetch, Project, TodoistClient, TodoistError } from './todoist';
 import { TaskInfo } from './types';
 import { confirmAll, linkedLines, reportUnlink, unlinkEdits, UnlinkScope } from './unlinkPlan';
@@ -37,10 +38,6 @@ const NEEDS_MARKDOWN_EDITOR = 'Todoist Sync works in the Markdown editor. Open t
 const NEEDS_TOKEN = 'Set your Todoist API token first, under Options > Todoist Sync.';
 
 let problemDialog: string | null = null;
-
-function escapeHtml(text: string): string {
-	return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 // Shown when a command can't run or when something was skipped. It stays
 // until dismissed (SPEC.md section 6.5). A dialog of our own, because
@@ -74,35 +71,60 @@ async function showDone(message: string) {
 	}, TOAST_MS + 500);
 }
 
-function pad(value: number): string {
-	return String(value).padStart(2, '0');
-}
-
 // "2026-10-11 09:05" in local time, for a block's `fetched:` line.
 function timestamp(now: Date): string {
 	return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
-function plural(count: number, word: string): string {
-	return `${count} ${word}${count === 1 ? '' : 's'}`;
-}
+// The session that reading the editor opened there, until edits end it.
+let openSession: number | null = null;
 
 // Reads the note from the Markdown editor. Returns null when that editor
 // is not the one showing the note.
 async function readEditor(): Promise<EditorState | null> {
 	try {
 		const state = await joplin.commands.execute('editor.execCommand', { name: GET_STATE_COMMAND });
-		return state && typeof state.body === 'string' ? state : null;
+		if (!state || typeof state.body !== 'string') return null;
+		openSession = state.session;
+		return state;
 	} catch (error) {
 		return null;
 	}
 }
 
+// Ends a session that was read from and never written to, as when there
+// was nothing to do or the command was cancelled.
+async function closeSession() {
+	if (openSession === null) return;
+	const session = openSession;
+	openSession = null;
+	try {
+		await joplin.commands.execute('editor.execCommand', { name: CLOSE_SESSION_COMMAND, args: [session] });
+	} catch (error) {
+		// That editor is gone, and its session with it.
+	}
+}
+
 async function applyEdits(session: number, edits: TextEdit[]): Promise<ApplyResult> {
-	return await joplin.commands.execute('editor.execCommand', {
+	const result: ApplyResult = await joplin.commands.execute('editor.execCommand', {
 		name: APPLY_EDITS_COMMAND,
 		args: [session, edits],
 	});
+	// The editor ends the session when it applies the edits.
+	if (openSession === session) openSession = null;
+	return result;
+}
+
+// Writes what a command did in Todoist back to the note. Returns null when
+// the note is no longer the open one or the editor can't be reached, so
+// that the command can still say what it did.
+async function writeBack(noteId: string, session: number, edits: TextEdit[]): Promise<ApplyResult | null> {
+	try {
+		return (await stillOn(noteId)) ? await applyEdits(session, edits) : null;
+	} catch (error) {
+		console.error('Todoist Sync: the note could not be written', error);
+		return null;
+	}
 }
 
 async function createClient(): Promise<TodoistClient | null> {
@@ -174,7 +196,7 @@ async function start(): Promise<{ noteId: string; editor: EditorState; client: T
 let lastJob: Promise<void> = Promise.resolve();
 
 function inTurn(job: () => Promise<void>): Promise<void> {
-	const done = lastJob.then(job);
+	const done = lastJob.then(job).finally(closeSession);
 	lastJob = done.catch(() => undefined);
 	return done;
 }
@@ -245,17 +267,19 @@ async function fetchInto(noteId: string, editor: EditorState, client: TodoistCli
 		? planNewBlock(parsed, editor.cursorLine, defaultFilter, newBlockTasks, options)
 		: planFetch(parsed, results, options);
 
+	let skippedGroups: string[] = [];
 	if (plan.edits.length) {
 		if (!(await stillOn(noteId))) throw new Stop('The note was changed while fetching, so nothing was written. Run Fetch again.');
 
-		const applied = await applyEdits(editor.session, plan.edits);
+		const applied = await writeBack(noteId, editor.session, plan.edits);
 		if (!applied || !applied.ok) throw new Stop('The editor changed while fetching, so nothing was written. Run Fetch again.');
-		if (applied.skippedGroups.length) {
+		skippedGroups = applied.skippedGroups;
+		if (skippedGroups.length) {
 			problems.push('Part of the note was edited while fetching, so some tasks were not written. Run Fetch again.');
 		}
 	}
 
-	return { summary: `Fetched ${plural(plan.added, 'task')}.`, problems };
+	return { summary: `Fetched ${plural(writtenCount(plan, skippedGroups), 'task')}.`, problems };
 }
 
 // Syncs the linked lines of the note.
@@ -287,21 +311,31 @@ async function syncLines(noteId: string, editor: EditorState, client: TodoistCli
 		throw new Stop('The note was changed while syncing, so nothing was done. Run Sync again.');
 	}
 
-	// A close that fails is reported, and its line is left as it is.
+	// A close that fails is reported, and its line is left as it is. No
+	// error stops the run here, because earlier closes have to be written
+	// to the note.
 	const failedCloses = new Map<string, string>();
+	let unreachable: string | null = null;
 	for (const id of toClose) {
+		// Once the token is rejected or Todoist can't be reached, the
+		// rest would fail the same way, so they are not tried.
+		if (unreachable !== null) {
+			failedCloses.set(id, unreachable);
+			continue;
+		}
 		try {
 			await client.closeTask(id);
 		} catch (error) {
-			if (!(error instanceof TodoistError)) throw error;
-			failedCloses.set(id, error.message);
+			const message = errorMessage(error, 'closing the task');
+			failedCloses.set(id, message);
+			if (error instanceof TodoistError && (error.status === null || error.status === 401 || error.status === 403)) unreachable = message;
 		}
 	}
 
 	const toWrite = syncEdits(parsed, writableItems(items, failedCloses));
 	let skippedGroups: string[] = [];
 	if (toWrite.length) {
-		const applied = (await stillOn(noteId)) ? await applyEdits(editor.session, toWrite) : null;
+		const applied = await writeBack(noteId, editor.session, toWrite);
 		if (!applied || !applied.ok) {
 			// Running Sync again is safe: a completed task is not closed
 			// twice, and a recurring line whose task has moved on only
@@ -364,7 +398,7 @@ async function sendLines(noteId: string, editor: EditorState, client: TodoistCli
 	if (!result.sent.length) return reportSend([], problems, []);
 
 	const edits = sendEdits(parsed, result.sent, { showDetails, projectNames: projectNamesOf(projects) });
-	const applied = (await stillOn(noteId)) ? await applyEdits(editor.session, edits) : null;
+	const applied = await writeBack(noteId, editor.session, edits);
 	if (!applied || !applied.ok) {
 		// Unlike Fetch and Sync, running Send again is not safe here.
 		const names = result.sent.map(sent => sent.task.content).join('\n');
@@ -430,7 +464,7 @@ async function removeLinks() {
 		if (!lines.length) return { summary: 'No Todoist links to remove.', problems: [] };
 		if (!(await confirmed(confirmAll(lines, !!scope)))) return null;
 
-		const applied = (await stillOn(note.id)) ? await applyEdits(editor.session, unlinkEdits(parsed, lines)) : null;
+		const applied = await writeBack(note.id, editor.session, unlinkEdits(parsed, lines));
 		if (!applied || !applied.ok) throw new Stop('The note was changed meanwhile, so no link was removed. Run the command again.');
 		return reportUnlink(lines, applied.skippedGroups);
 	});

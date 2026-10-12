@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { apply } from './applyEdits';
-import { FetchOptions, planFetch, planNewBlock } from '../src/fetchPlan';
+import { FetchOptions, planFetch, planNewBlock, writtenCount } from '../src/fetchPlan';
 import { parseNote } from '../src/noteParser';
 import { TaskInfo } from '../src/types';
 
@@ -151,6 +151,21 @@ test('editing the block itself while Todoist answers skips that block whole', ()
 	const result = apply(body, plan.edits, () => ({ from: fence, to: fence + 3, insert: '~~~' }));
 	assert.deepEqual(result.skipped, ['block@0']);
 	assert.equal(result.text, '```todoist\nfilter: today\n~~~\nText');
+	assert.equal(writtenCount(plan, result.skipped), 0);
+});
+
+test('the count of fetched tasks leaves out a block that was skipped', () => {
+	const body = '```todoist\nfilter: today\n```\n\n```todoist\nfilter: p1\n```';
+	const note = parseNote(body);
+	const plan = planFetch(note, [
+		{ block: note.queryBlocks[0], tasks: [task('a1', 'One'), task('a2', 'Two')] },
+		{ block: note.queryBlocks[1], tasks: [task('b1', 'Three')] },
+	], options);
+
+	assert.equal(plan.added, 3);
+	assert.equal(writtenCount(plan, []), 3);
+	assert.equal(writtenCount(plan, ['block@0']), 1);
+	assert.equal(writtenCount(plan, ['block@0', 'block@4']), 0);
 });
 
 test('no block in the note: a new one is written at the cursor', () => {

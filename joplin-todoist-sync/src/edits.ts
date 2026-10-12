@@ -13,6 +13,7 @@ export interface TextEdit {
 	to: number;
 	insert: string;
 	// The text this edit depends on, and where it was in the snapshot.
+	// Always one or more whole lines.
 	checkFrom: number;
 	checkTo: number;
 	expected: string;
@@ -47,6 +48,17 @@ export function resolveEdits(edits: TextEdit[], mapper: Mapper): ResolvedEdits {
 			continue;
 		}
 
+		// The expected text is always whole lines. Text typed right at
+		// one of its ends is outside the mapped range, so it is found by
+		// looking at what is next to the range now. A new line typed
+		// there leaves the old one whole, and is fine.
+		const before = checkFrom > 0 ? mapper.slice(checkFrom - 1, checkFrom) : '\n';
+		const after = mapper.slice(checkTo, checkTo + 1);
+		if (before !== '\n' || (after !== '' && after !== '\n')) {
+			skipped.add(edit.group);
+			continue;
+		}
+
 		// An insertion goes before anything typed at the same spot.
 		const from = mapper.mapPos(edit.from, edit.from === edit.to ? -1 : 1);
 		const to = edit.from === edit.to ? from : mapper.mapPos(edit.to, -1);
@@ -64,6 +76,12 @@ export function resolveEdits(edits: TextEdit[], mapper: Mapper): ResolvedEdits {
 			.map(({ from, to, insert }) => ({ from, to, insert })),
 		skippedGroups: Array.from(skipped),
 	};
+}
+
+// The group of an edit that rewrites one line by itself. The reports use
+// it to name the lines the editor skipped.
+export function lineGroup(line: { lineNumber: number }): string {
+	return `line@${line.lineNumber}`;
 }
 
 // The offset at which each line of `lines` starts, plus one more entry for

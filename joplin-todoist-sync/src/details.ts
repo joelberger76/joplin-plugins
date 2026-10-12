@@ -3,6 +3,7 @@
 // occurrence date a recurring line carries at the end of its link URL
 // (SPEC.md section 7).
 
+import { pad } from './text';
 import { DueMoment, TaskDue, TaskInfo } from './types';
 
 export const LINK_MARK = '↗';
@@ -35,16 +36,8 @@ export function parseDue(date: string): DueMoment | null {
 	};
 }
 
-function pad(value: number): string {
-	return String(value).padStart(2, '0');
-}
-
-// Names one occurrence of a recurring task: "2026-10-12", or
-// "2026-10-12T14:00" for a task due at a time of day. This is what a
-// recurring line carries after the "#" of its link URL. Returns null for a
-// task that does not recur.
-export function occurrenceOf(due: TaskDue | null): string | null {
-	if (!due || !due.isRecurring) return null;
+// The occurrence in this device's local time.
+function localOccurrenceOf(due: TaskDue): string | null {
 	const moment = parseDue(due.date);
 	if (!moment) return null;
 
@@ -53,9 +46,28 @@ export function occurrenceOf(due: TaskDue | null): string | null {
 	return text;
 }
 
+// Names one occurrence of a recurring task: "2026-10-12", or
+// "2026-10-12T14:00" for a task due at a time of day. A time in a fixed
+// timezone is named in UTC, as "2026-10-12T14:00Z", so that it reads the
+// same wherever the device is. This is what a recurring line carries after
+// the "#" of its link URL. Returns null for a task that does not recur.
+export function occurrenceOf(due: TaskDue | null): string | null {
+	if (!due || !due.isRecurring) return null;
+	const fixed = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?Z$/.exec(due.date);
+	return fixed ? `${fixed[1]}Z` : localOccurrenceOf(due);
+}
+
 // Whether text read from a link URL is an occurrence this plugin wrote.
 export function isOccurrence(text: string | null): text is string {
-	return !!text && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(text);
+	return !!text && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}Z?)?$/.test(text);
+}
+
+// Whether a line's pinned occurrence is the one the task is waiting on.
+// Links written before fixed-timezone times were named in UTC carry them
+// in local time, and still match on a device in the same timezone.
+export function isCurrentOccurrence(pinned: string, due: TaskDue | null): boolean {
+	if (!due || !due.isRecurring) return false;
+	return pinned === occurrenceOf(due) || pinned === localOccurrenceOf(due);
 }
 
 // Whether a task is due today or earlier, by local date (SPEC.md section

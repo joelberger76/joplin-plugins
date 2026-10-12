@@ -14,7 +14,7 @@
 // section 8.1). The raw block shows while the selection touches it.
 
 import { BlockRange, blockRanges, chipLabel, collapsedBlocks } from './blockDisplay';
-import { APPLY_EDITS_COMMAND, ApplyResult, DisplaySettings, EditorState, GET_DISPLAY_MESSAGE, GET_STATE_COMMAND, REFRESH_DISPLAY_COMMAND } from './editorApi';
+import { APPLY_EDITS_COMMAND, ApplyResult, CLOSE_SESSION_COMMAND, DisplaySettings, EditorState, GET_DISPLAY_MESSAGE, GET_STATE_COMMAND, REFRESH_DISPLAY_COMMAND } from './editorApi';
 import { resolveEdits, TextEdit } from './edits';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CodeMirror is supplied by Joplin at runtime, with no type packages
@@ -87,6 +87,12 @@ export default (context: { contentScriptId: string; postMessage: any }) => {
 				}
 
 				return { ok: true, applied: resolved.changes.length, skippedGroups: resolved.skippedGroups };
+			});
+
+			// A session that gets no edits is closed, so that its changes
+			// are not followed for as long as the editor lives.
+			codeMirrorWrapper.registerCommand(CLOSE_SESSION_COMMAND, (sessionId: number) => {
+				if (session && session.id === sessionId) session = null;
 			});
 
 			// The chip a collapsed query block is shown as.

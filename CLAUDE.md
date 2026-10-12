@@ -332,7 +332,15 @@ Restart Joplin after (re)installing either way.
   runs `todoistSyncGetState`, which returns the live text and opens a session that records
   later document changes. It then sends `TextEdit`s (`edits.ts`) to `todoistSyncApplyEdits`,
   which maps them through those changes and applies them as one transaction. Each edit names
-  the text it depends on and a group. A group is skipped whole if any of its text changed.
+  the text it depends on and a group. A group is skipped whole if any of its text changed,
+  which includes text typed right at either end of it. That text is always whole lines.
+  A session that gets no edits is closed with `todoistSyncCloseSession` when the turn ends
+  (`inTurn`).
+- `src/text.ts` holds the small helpers the modules share (`plural`, `pad`, `escapeHtml`).
+  The `line@N` group name is `lineGroup` in `edits.ts`.
+- A recurring line's occurrence for a time in a fixed timezone is written in UTC
+  (`#2026-10-12T14:00Z`). Older links have it in local time, and `isCurrentOccurrence` in
+  `details.ts` accepts both.
 - `src/editorApi.ts` holds the command names and shapes shared by `index.ts` and
   `editor.ts`. `index.ts` must not import `editor.ts` itself, or webpack tries to bundle
   `@codemirror/*` into the main script and fails.
@@ -358,5 +366,7 @@ Restart Joplin after (re)installing either way.
      - When committing, include untracked files.
      - When committing, if there are unstaged changes predating your session, please include them.
      - When committing, you should not push to origin until I tell you to.
+  - Code review
+     - Always run a code review (the `code-review` skill) on the changes before finalizing work, and fix or report what it finds. Finalizing means calling the work done or committing it.
   - I store our shared to-do list in TODO.md, one per plugin, inside that plugin's directory (for example `joplin-todoist-sync/TODO.md`). A root TODO.md is only for items that apply to the whole repo. Please create it if it doesn't exist already. To-dos should be deleted once complete, but only after I confirm this is ok.
   - When I add a new plug-in to the repo, update CLAUDE.md to ensure current context.

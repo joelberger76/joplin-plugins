@@ -34,6 +34,11 @@ test('more than one match at a step is ambiguous, never a guess', () => {
 	assert.deepEqual(matchName('ber', LABELS), { kind: 'ambiguous', candidates: ['Joel Berger', 'Joel Ferber'] });
 });
 
+test('two projects with the same name are ambiguous too', () => {
+	assert.deepEqual(matchName('Admin', ['Admin', 'Work', 'Admin']), { kind: 'ambiguous', candidates: ['Admin', 'Admin'] });
+	assert.deepEqual(matchName('adm', ['Admin', 'Work', 'Admin']), { kind: 'ambiguous', candidates: ['Admin', 'Admin'] });
+});
+
 test('no match, and an empty token', () => {
 	assert.deepEqual(matchName('nothing', LABELS), { kind: 'none' });
 	assert.deepEqual(matchName('--', LABELS), { kind: 'none' });

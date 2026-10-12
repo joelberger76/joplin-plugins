@@ -125,6 +125,24 @@ test('looks up tasks: open ones together, the rest one by one', async () => {
 	assert.deepEqual(states.get('gone3'), { kind: 'missing' });
 });
 
+test('an id Todoist can not read is missing, and the other tasks are still found', async () => {
+	const { httpFetch, calls } = fake([
+		// One bad id makes Todoist reject the whole `ids=` request.
+		{ status: 400, body: 'Invalid argument value' },
+		{ status: 200, body: { ...RAW, id: 'open1' } },
+		{ status: 400, body: 'Invalid argument value' },
+	]);
+	const states = await new TodoistClient('secret', httpFetch).getTaskStates(['open1', '123']);
+
+	assert.deepEqual(calls.map(call => call.url.replace('https://api.todoist.com/api/v1', '')), [
+		'/tasks?ids=open1,123&limit=200',
+		'/tasks/open1',
+		'/tasks/123',
+	]);
+	assert.equal(states.get('open1')!.kind, 'found');
+	assert.deepEqual(states.get('123'), { kind: 'missing' });
+});
+
 test('a rejected token is an error, never "missing"', async () => {
 	const { httpFetch } = fake([
 		{ status: 200, body: { results: [], next_cursor: null } },
