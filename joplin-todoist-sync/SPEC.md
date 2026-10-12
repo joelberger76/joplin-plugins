@@ -1,6 +1,6 @@
 # joplin-todoist-sync: specification
 
-Status: draft 5, 2026-10-12. Build steps 1 to 4 are done. Every Todoist API assumption has been
+Status: draft 5, 2026-10-12. Build steps 1 to 5 are done. Every Todoist API assumption has been
 tested live (section 9.1). A few items remain that can only be checked in the Joplin app
 during the build (section 9.3). Section 12 is the build order.
 
@@ -105,7 +105,7 @@ fetched: 2026-10-10 08:31
 ```
 ````
 
-- `filter:` is any Todoist filter query. Required. It is sent to Todoist exactly as
+- `filter:` is any Todoist filter query. It is sent to Todoist exactly as
   written, so it uses Todoist's own filter syntax and none of this plugin's:
   - `#Work` is a project, `##Work` is a project with its sub-projects, `@errand` is a label.
     `@@` means nothing in a filter.
@@ -113,6 +113,10 @@ fetched: 2026-10-10 08:31
     matched loosely here the way `##` and `@@` tokens are in a task line (section 3.5).
   - Todoist reports a filter it can't read as an error. It does not report an unknown
     project or label, it just returns no tasks.
+- A block with no `filter:` line, or an empty one, is run with the default filter from
+  the settings. That filter is then written into the block as its `filter:` line, so the
+  note says what was fetched and a later change of the setting does not change the block.
+  If the setting is empty too, the block is not run and Fetch and Sync report it.
 - `fetched:` is written by the plugin after each run. A block without it has never run.
   Deleting the line re-arms the automatic first fetch.
 - Other lines are kept as they are and ignored.
@@ -221,7 +225,8 @@ For each query block in the note, the open tasks matching its filter, except:
 ### 5.3 Automatic first fetch
 
 When a note is opened and it contains a query block with no `fetched:` line, that block is
-fetched once, automatically.
+fetched once, automatically. A block with no filter counts when a default filter is set
+(section 3.4).
 
 - Template notes are never fetched automatically. A note is a template when it is inside a
   template notebook (setting, default `Templates`, sub-notebooks included) or carries the
@@ -232,6 +237,18 @@ fetched once, automatically.
   time the note is opened.
 - A block added to a note that is already open (for example by inserting a template into
   it) runs on the next open or on a manual Fetch.
+- "Opened" means the note is selected and stays selected for a moment, so moving through
+  the note list with the arrow keys fetches nothing. The note that is open when Joplin
+  starts counts as opened.
+- Either setting can list several names, separated by commas. An empty setting turns that
+  check off.
+- It is silent when it can't run: no API token is set, the note is a template, or the
+  Markdown editor does not show the note's saved text within a few seconds. The block then
+  waits for the next open or a manual Fetch.
+- It reports like the Fetch command (section 6.5): a toast when it worked, a dialog when a
+  filter or the request failed. The dialog says that it came from the automatic fetch.
+- Commands and the automatic fetch run one at a time. A command started while the
+  automatic fetch is running waits for it.
 
 ## 6. Sync
 
@@ -409,7 +426,7 @@ off on all of them.
 |---|---|
 | Todoist API token (stored encrypted by Joplin, see 9.1 item 8) | empty |
 | Default project for sent tasks | empty (Inbox) |
-| Default filter for a new query block | `today \| overdue` |
+| Default filter, for a new query block and for a block with no `filter:` line | `today \| overdue` |
 | Template notebooks (no automatic fetch) | `Templates` |
 | Template tag (no automatic fetch) | `template` |
 | Query block in rendered note | Hidden (other option: Chip) |
@@ -608,8 +625,10 @@ until the one before it is accepted.
    cases of section 6.1 passed. Scenario 15 is tested with step 5.
 4. **Send. Done.** Tokens, escaping, subtasks, default project. Joel accepted it on
    2026-10-12, after five rounds in the app against a throwaway Todoist project.
-5. **Automatic first fetch.** The note-open hook and the template exclusions. Try it with the
-   Journal and Templates plugins.
+5. **Automatic first fetch. Done.** The note-open hook and the template exclusions, and
+   the default filter for a block that has none (section 3.4). Joel accepted it on
+   2026-10-12, after three rounds in the app that included the Templates and Journal
+   plugins and scenario 15 of section 7.1.
 6. **Display.** The collapsed query block in the editor and the hidden block or chip in the
    rendered note. Settles checks 2 and 3 of section 9.3.
 7. **Wrap-up.** Remove dead links, keyboard shortcuts and toolbar buttons, the companion change to `joplin-inline-tags`, a README,

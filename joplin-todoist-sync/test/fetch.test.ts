@@ -203,3 +203,44 @@ test('what Fetch writes, the parser reads back as linked lines and a fetched blo
 	assert.equal(note.taskLines[0].link!.taskId, 'a1');
 	assert.equal(note.taskLines[0].link!.text, '↗ @@a b');
 });
+
+// Runs every block that has no filter with `filter`, as Fetch does with
+// the default filter from the settings.
+function fetchWithDefault(body: string, filter: string, tasks: TaskInfo[]) {
+	const note = parseNote(body);
+	const results = note.queryBlocks.map(block => (block.filter ? { block, tasks } : { block, tasks, filter }));
+	const plan = planFetch(note, results, options);
+	return apply(body, plan.edits);
+}
+
+test('a block with no filter gets the default filter written into it', () => {
+	const result = fetchWithDefault('# Journal\n```todoist\n```\nText', 'today | overdue', [task('a1', 'Call the plumber')]);
+	assert.equal(result.text, [
+		'# Journal',
+		'```todoist',
+		'filter: today | overdue',
+		'fetched: 2026-10-11 09:00',
+		'```',
+		`- [ ] Call the plumber ${link('a1')}`,
+		'',
+		'Text',
+	].join('\n'));
+});
+
+test('an empty filter line is filled in, and other lines of the block are kept', () => {
+	const result = fetchWithDefault('```todoist\nfilter:\nnote: mine\n```', 'today', []);
+	assert.equal(result.text, '```todoist\nfilter: today\nnote: mine\nfetched: 2026-10-11 09:00\n```');
+
+	const last = fetchWithDefault('```todoist\nnote: mine\nfilter:\n```', 'today', []);
+	assert.equal(last.text, '```todoist\nnote: mine\nfilter: today\nfetched: 2026-10-11 09:00\n```');
+});
+
+test('a block with a fetched line but no filter gets the filter above it', () => {
+	const result = fetchWithDefault('```todoist\nfetched: 2026-10-01 08:00\n```', 'today', []);
+	assert.equal(result.text, '```todoist\nfilter: today\nfetched: 2026-10-11 09:00\n```');
+});
+
+test('a block that has its own filter is not given the default', () => {
+	const result = fetchWithDefault('```todoist\nfilter: #Work\n```', 'today', []);
+	assert.equal(result.text, '```todoist\nfilter: #Work\nfetched: 2026-10-11 09:00\n```');
+});

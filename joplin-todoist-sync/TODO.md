@@ -8,10 +8,16 @@ tokens, the reported problems, a selection, subtasks, a recurring task and the d
 project setting. Not tried in the app, only in unit tests: Todoist refusing a line, a lost
 connection, switching notes while sending, and editing a line while it is sent.
 
-Next is build step 5 (automatic first fetch), which also covers scenario 15 of SPEC.md
-section 7.1.
+Build step 5 (automatic first fetch) is accepted. Joel signed off on 2026-10-12, after
+three rounds in the app: a plain note, the template notebook and tag, re-arming, the Rich
+Text editor, and the Templates and Journal plugins (scenario 15 of SPEC.md section 7.1).
+During testing a block with no `filter:` line was made to run with the default filter
+(SPEC.md section 3.4). Not tried in the app: the dialog for a failed automatic fetch, and
+a command started while an automatic fetch is running.
 
-The `SendTest` projects and labels in Todoist are deleted. For the next interactive session, Claude
+Next is build step 6 (Display).
+
+The test projects and labels in Todoist are deleted. For the next interactive session, Claude
 creates a new test project through the Todoist connector, and Joel makes a test note with a
 query block for it. Joel ticks boxes and runs the commands in Joplin. Claude does the
 Todoist side and checks the result there.

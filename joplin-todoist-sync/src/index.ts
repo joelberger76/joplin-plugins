@@ -1,5 +1,6 @@
 import joplin from 'api';
 import { ContentScriptType, MenuItemLocation, SettingItemType, ToastType } from 'api/types';
+import { hasBlockToFetch, isTemplate, sameText } from './autoFetch';
 import { APPLY_EDITS_COMMAND, ApplyResult, EditorState, GET_STATE_COMMAND } from './editorApi';
 import { TextEdit } from './edits';
 import { FetchOptions, FetchPlan, planFetch, planNewBlock } from './fetchPlan';
@@ -15,6 +16,8 @@ const SETTING_TOKEN = 'todoistSyncToken';
 const SETTING_DEFAULT_PROJECT = 'todoistSyncDefaultProject';
 const SETTING_DEFAULT_FILTER = 'todoistSyncDefaultFilter';
 const SETTING_SHOW_DETAILS = 'todoistSyncShowDetails';
+const SETTING_TEMPLATE_NOTEBOOKS = 'todoistSyncTemplateNotebooks';
+const SETTING_TEMPLATE_TAGS = 'todoistSyncTemplateTags';
 
 const SEND_COMMAND = 'todoistSyncSend';
 const FETCH_COMMAND = 'todoistSyncFetch';
@@ -142,13 +145,26 @@ async function start(): Promise<{ noteId: string; editor: EditorState; client: T
 	return { noteId: note.id, editor, client };
 }
 
+// The commands and the automatic fetch run one at a time, in the order
+// they were asked for. Each reads the note and writes it later, and the
+// editor script follows only one such session.
+let lastJob: Promise<void> = Promise.resolve();
+
+function inTurn(job: () => Promise<void>): Promise<void> {
+	const done = lastJob.then(job);
+	lastJob = done.catch(() => undefined);
+	return done;
+}
+
 // Runs a command and shows what it returns, or why it stopped.
 async function run(doing: string, command: () => Promise<Outcome>) {
-	try {
-		await showOutcome(await command());
-	} catch (error) {
-		await showProblem(error instanceof Stop ? error.message : errorMessage(error, doing));
-	}
+	await inTurn(async () => {
+		try {
+			await showOutcome(await command());
+		} catch (error) {
+			await showProblem(error instanceof Stop ? error.message : errorMessage(error, doing));
+		}
+	});
 }
 
 // Fetches into the note's query blocks. With `onlyNeverRun`, only the
@@ -161,19 +177,23 @@ async function fetchInto(noteId: string, editor: EditorState, client: TodoistCli
 
 	// Ask Todoist for each block's tasks. A block that fails is reported
 	// and left alone, so its `fetched:` line is not written.
-	const results: Array<{ block: QueryBlock; tasks: TaskInfo[] }> = [];
+	const results: Array<{ block: QueryBlock; tasks: TaskInfo[]; filter?: string }> = [];
 	let newBlockTasks: TaskInfo[] | null = null;
 	const defaultFilter = String(await joplin.settings.value(SETTING_DEFAULT_FILTER) || '').trim();
 	const blocks = onlyNeverRun ? parsed.queryBlocks.filter(block => block.fetched === null) : parsed.queryBlocks;
 
 	if (parsed.queryBlocks.length || onlyNeverRun) {
 		for (const block of blocks) {
-			if (!block.filter) {
-				problems.push(`The query block on line ${block.startLine + 1} has no "filter:" line.`);
+			// A block with no filter is run with the default one, which
+			// is then written into it.
+			const filter = block.filter || defaultFilter;
+			if (!filter) {
+				problems.push(`The query block on line ${block.startLine + 1} has no "filter:" line, and no default filter is set under Options > Todoist Sync.`);
 				continue;
 			}
 			try {
-				results.push({ block, tasks: await client.getTasksByFilter(block.filter) });
+				const tasks = await client.getTasksByFilter(filter);
+				results.push(block.filter ? { block, tasks } : { block, tasks, filter });
 			} catch (error) {
 				// A bad filter only spoils its own block. Anything
 				// else (token, connection) stops the whole run.
@@ -357,6 +377,97 @@ async function syncNote() {
 	});
 }
 
+// How long the automatic fetch waits for the editor to show a note that
+// was just opened: this many tries, this far apart.
+const EDITOR_TRIES = 20;
+const EDITOR_WAIT_MS = 250;
+// How long a note has to stay selected before it counts as opened, so
+// that moving through the note list with the arrow keys fetches nothing.
+const SETTLE_MS = 400;
+
+function wait(ms: number): Promise<void> {
+	return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// The titles of the note's notebook and of every notebook above it.
+async function notebooksAbove(folderId: string): Promise<string[]> {
+	const titles: string[] = [];
+	const seen = new Set<string>();
+	let id = folderId;
+	while (id && !seen.has(id)) {
+		seen.add(id);
+		const folder = await joplin.data.get(['folders', id], { fields: ['id', 'title', 'parent_id'] });
+		titles.push(String(folder.title ?? ''));
+		id = folder.parent_id;
+	}
+	return titles;
+}
+
+async function tagsOf(noteId: string): Promise<string[]> {
+	const titles: string[] = [];
+	for (let page = 1; ; page++) {
+		const result = await joplin.data.get(['notes', noteId, 'tags'], { fields: ['id', 'title'], page });
+		for (const tag of result.items) titles.push(String(tag.title ?? ''));
+		if (!result.has_more) return titles;
+	}
+}
+
+// Fetches the query blocks of the open note that have never run (SPEC.md
+// section 5.3). It stays quiet when there is nothing for it to do or the
+// note can't be fetched into right now. The block then waits for the next
+// time the note is opened, or for a manual Fetch.
+async function fetchOnOpen() {
+	const note = await joplin.workspace.selectedNote();
+	const defaultFilter = String(await joplin.settings.value(SETTING_DEFAULT_FILTER) || '').trim();
+	if (!note || !hasBlockToFetch(String(note.body ?? ''), defaultFilter)) return;
+
+	const client = await createClient();
+	if (!client) return;
+
+	const templateNotebooks = String(await joplin.settings.value(SETTING_TEMPLATE_NOTEBOOKS) || '');
+	const templateTags = String(await joplin.settings.value(SETTING_TEMPLATE_TAGS) || '');
+	if (isTemplate(await notebooksAbove(note.parent_id), await tagsOf(note.id), templateNotebooks, templateTags)) return;
+
+	// The editor may not be showing the note yet, or may be the Rich Text
+	// editor. Wait until the Markdown editor holds this note's text.
+	let editor: EditorState | null = null;
+	for (let i = 0; i < EDITOR_TRIES; i++) {
+		if (!(await stillOn(note.id))) return;
+		const state = await readEditor();
+		if (state && sameText(state.body, String(note.body ?? ''))) {
+			editor = state;
+			break;
+		}
+		await wait(EDITOR_WAIT_MS);
+	}
+	if (!editor) return;
+
+	try {
+		await showOutcome(await fetchInto(note.id, editor, client, true));
+	} catch (error) {
+		// The note was changed or left meanwhile. Nothing was written.
+		if (error instanceof Stop) return;
+		await showProblem(`The automatic fetch of this note failed. It will be tried again the next time the note is opened.\n\n${errorMessage(error, 'fetching')}`);
+	}
+}
+
+let lastOpen = 0;
+
+// Called when a note is selected, and once when the plugin starts.
+async function noteOpened() {
+	const open = ++lastOpen;
+	await wait(SETTLE_MS);
+	if (open !== lastOpen) return;
+
+	await inTurn(async () => {
+		try {
+			await fetchOnOpen();
+		} catch (error) {
+			console.error('Todoist Sync: the automatic fetch failed', error);
+		}
+	});
+}
+
 joplin.plugins.register({
 	onStart: async function() {
 		await joplin.settings.registerSection(SETTINGS_SECTION, {
@@ -388,7 +499,23 @@ joplin.plugins.register({
 				section: SETTINGS_SECTION,
 				public: true,
 				label: 'Default filter for a new query block',
-				description: 'Any Todoist filter query. Used when Fetch is run in a note that has no todoist query block.',
+				description: 'Any Todoist filter query. Used for a todoist query block that has no "filter:" line, and when Fetch is run in a note that has no query block.',
+			},
+			[SETTING_TEMPLATE_NOTEBOOKS]: {
+				value: 'Templates',
+				type: SettingItemType.String,
+				section: SETTINGS_SECTION,
+				public: true,
+				label: 'Template notebooks (no automatic fetch)',
+				description: 'A new query block is fetched when its note is opened, except in these notebooks and their sub-notebooks. Separate several names with commas.',
+			},
+			[SETTING_TEMPLATE_TAGS]: {
+				value: 'template',
+				type: SettingItemType.String,
+				section: SETTINGS_SECTION,
+				public: true,
+				label: 'Template tag (no automatic fetch)',
+				description: 'Notes with this tag are not fetched automatically either. Separate several tags with commas.',
 			},
 			[SETTING_SHOW_DETAILS]: {
 				value: true,
@@ -438,5 +565,11 @@ joplin.plugins.register({
 			[{ commandName: SEND_COMMAND }, { commandName: FETCH_COMMAND }, { commandName: SYNC_COMMAND }],
 			MenuItemLocation.Tools,
 		);
+
+		// The automatic first fetch (SPEC.md section 5.3).
+		await joplin.workspace.onNoteSelectionChange(() => {
+			void noteOpened();
+		});
+		void noteOpened();
 	},
 });

@@ -63,8 +63,10 @@ function linkedIds(note: ParsedNote): Set<string> {
 
 // Plans a fetch into the query blocks of a note. `results` holds the tasks
 // for each block that was run, in any order. Blocks not listed are left
-// alone.
-export function planFetch(note: ParsedNote, results: Array<{ block: QueryBlock; tasks: TaskInfo[] }>, options: FetchOptions): FetchPlan {
+// alone. `filter` is given for a block that had none and was run with the
+// default filter. It is written into the block, so that the note says
+// what was fetched.
+export function planFetch(note: ParsedNote, results: Array<{ block: QueryBlock; tasks: TaskInfo[]; filter?: string }>, options: FetchOptions): FetchPlan {
 	const plan: FetchPlan = { edits: [], added: 0, alreadyLinked: 0, notDue: 0 };
 	const lines = note.lines;
 	const starts = lineStarts(lines);
@@ -73,24 +75,45 @@ export function planFetch(note: ParsedNote, results: Array<{ block: QueryBlock; 
 
 	const ordered = results.slice().sort((a, b) => a.block.startLine - b.block.startLine);
 
-	for (const { block, tasks } of ordered) {
+	for (const { block, tasks, filter } of ordered) {
 		const group = `block@${block.startLine}`;
 		const newLines = choose(tasks, linked, options, plan);
 
-		// The `fetched:` line: replace it, or add one before the closing fence.
-		let fetchedLine = -1;
-		for (let i = block.startLine + 1; i < block.endLine; i++) {
-			if (/^\s*fetched\s*:/i.test(lines[i])) {
-				fetchedLine = i;
-				break;
+		const lineWith = (key: string) => {
+			for (let i = block.startLine + 1; i < block.endLine; i++) {
+				if (new RegExp(`^\\s*${key}\\s*:`, 'i').test(lines[i])) return i;
+			}
+			return -1;
+		};
+		const indentOf = (i: number) => /^\s*/.exec(lines[i])![0];
+
+		// The filter the block was run with, if it had none: an empty
+		// `filter:` line is filled in. Otherwise the line is added just
+		// above the `fetched:` line.
+		let newFilter = '';
+		if (filter !== undefined) {
+			const filterLine = lineWith('filter');
+			if (filterLine >= 0) {
+				plan.edits.push({
+					from: starts[filterLine],
+					to: starts[filterLine] + lines[filterLine].length,
+					insert: `${indentOf(filterLine)}filter: ${filter}`,
+					...lineRange(filterLine),
+					group,
+				});
+			} else {
+				newFilter = `filter: ${filter}\n`;
 			}
 		}
+
+		// The `fetched:` line: replace it, or add one before the closing fence.
+		const fetchedLine = lineWith('fetched');
 		if (fetchedLine >= 0) {
-			const indent = /^\s*/.exec(lines[fetchedLine])![0];
+			const indent = indentOf(fetchedLine);
 			plan.edits.push({
 				from: starts[fetchedLine],
 				to: starts[fetchedLine] + lines[fetchedLine].length,
-				insert: `${indent}fetched: ${options.timestamp}`,
+				insert: `${newFilter ? indent : ''}${newFilter}${indent}fetched: ${options.timestamp}`,
 				...lineRange(fetchedLine),
 				group,
 			});
@@ -98,7 +121,7 @@ export function planFetch(note: ParsedNote, results: Array<{ block: QueryBlock; 
 			plan.edits.push({
 				from: starts[block.endLine],
 				to: starts[block.endLine],
-				insert: `fetched: ${options.timestamp}\n`,
+				insert: `${newFilter}fetched: ${options.timestamp}\n`,
 				...lineRange(block.endLine),
 				group,
 			});
