@@ -170,6 +170,9 @@ Restart Joplin after (re)installing either way.
   Markdown and would otherwise delete them from the note.
 - A tag is "part of a sentence" when other content follows it on the same line, unless that
   content starts with a symbol or emoji (Joel ends meeting headings with "⏱️ 08:30-09:00").
+  A link whose text starts with a symbol counts the same way, so a tag stays hidden before
+  the `[↗ p1](...)` link that `joplin-todoist-sync` puts at the end of a line. The rule
+  knows nothing about that plugin, it only looks at the link text.
   Such a tag is shown as words: an outer `<span class="inline-tag-label" data-label="...">`
   whose `::after` prints the label (`tagLabel` in `tags.ts`: last `/` segment, dashes and
   underscores to spaces). The label is generated content for the same Rich Text reason.
@@ -255,12 +258,11 @@ Restart Joplin after (re)installing either way.
 - In progress. `SPEC.md` in the plugin directory is the source of truth for behaviour, and
   its section 12 is the build order with the current status. Read it before changing
   anything. `TODO.md` there holds v2 ideas and things to do during the build.
-- Build steps 1 to 5 are done. Step 1 is the logic modules in `src/` (`noteParser.ts`,
+- Build steps 1 to 6 are done. Step 1 is the logic modules in `src/` (`noteParser.ts`,
   `details.ts`, `names.ts`, `sendText.ts`, `syncRules.ts`, `types.ts`) with no Joplin or
   network dependency. Step 2 is manual Fetch: settings, the Fetch command under
   Tools > Todoist Sync, `todoist.ts` (API client, takes `fetch` as a parameter so tests can fake
-  it) and `fetchPlan.ts` (turns tasks into edits). The query block display is not built
-  yet.
+  it) and `fetchPlan.ts` (turns tasks into edits).
 - Step 3 (Sync) was accepted by Joel on 2026-10-11, after the interactive session of
   SPEC.md section 7.1. The Sync command looks up every linked task
   (`TodoistClient.getTaskStates`), and `syncPlan.ts` turns the per-line decisions of
@@ -284,6 +286,17 @@ Restart Joplin after (re)installing either way.
   body, because the editor may still show the previous note when the event fires.
   Commands and the automatic fetch are serialized through `inTurn`, since the editor
   script follows one session at a time.
+- Step 6 (Display) was accepted by Joel on 2026-10-12. `blockDisplay.ts` holds the
+  pure parts: where the query blocks are, which ones the selection touches, the chip text
+  and the HTML for the rendered note, where the block is never shown. `editor.ts` collapses a block to a chip with a block
+  replace decoration from a CM6 state field (a view plugin may not replace across lines),
+  kept in a `Compartment` that the "Collapse query block in editor" setting turns on and
+  off. The script asks `index.ts` for that setting and for "Show the filter in the query
+  block chip" with `postMessage`, like `joplin-inline-tag-style` does for its colors.
+  `viewer.ts` (markdown-it) overrides the `fence` renderer for `todoist` blocks only. It
+  writes Joplin's `joplin-editable` and `joplin-source` structure, so the Rich Text editor
+  restores the block from its source on save, and `viewer.css` hides it. Joel chose to
+  have no chip and no setting for the rendered note.
 - Problems are reported in a plugin dialog with one OK button (`showProblem` in
   `index.ts`), not `showMessageBox`, which always adds a Cancel button. Joplin sizes a
   plugin dialog from `#joplin-plugin-content`, which stays 200px wide unless that element

@@ -119,10 +119,12 @@ function showSentenceTags(pieces: Piece[]) {
 
 			// A tag is part of a sentence when more of the sentence
 			// follows it on the same line.
-			const next = line.slice(index + 1).find(later => later.kind === 'other');
-			if (!next) return;
+			const rest = line.slice(index + 1).filter(later => later.kind === 'other');
+			if (!rest.length) return;
 
-			const token = next.tokens[0];
+			// Text that opens with a symbol is not, and neither is a link
+			// whose text does, such as "[↗ p1](https://...)".
+			const token = rest[0].tokens[0].type === 'link_open' && rest[1] ? rest[1].tokens[0] : rest[0].tokens[0];
 			if (token.type === 'text' && startsWithSymbol.test(token.content)) return;
 
 			piece.show = 'label';

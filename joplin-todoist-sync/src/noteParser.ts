@@ -119,19 +119,25 @@ export function formatTaskLine(line: {
 	return parts.join(' ');
 }
 
-function readBlock(lines: string[], startLine: number, endLine: number): QueryBlock {
+// Reads the `filter:` and `fetched:` lines from the lines between a
+// block's fences.
+export function blockFields(inner: string[]): { filter: string | null; fetched: string | null } {
 	let filter: string | null = null;
 	let fetched: string | null = null;
 
-	for (let i = startLine + 1; i < endLine; i++) {
-		const match = /^\s*(filter|fetched)\s*:\s*(.*?)\s*$/i.exec(lines[i]);
+	for (const line of inner) {
+		const match = /^\s*(filter|fetched)\s*:\s*(.*?)\s*$/i.exec(line);
 		if (!match) continue;
 		const key = match[1].toLowerCase();
 		if (key === 'filter' && filter === null) filter = match[2] || null;
 		if (key === 'fetched' && fetched === null) fetched = match[2] || null;
 	}
 
-	return { startLine, endLine, filter, fetched };
+	return { filter, fetched };
+}
+
+function readBlock(lines: string[], startLine: number, endLine: number): QueryBlock {
+	return { startLine, endLine, ...blockFields(lines.slice(startLine + 1, endLine)) };
 }
 
 export function parseNote(body: string): ParsedNote {

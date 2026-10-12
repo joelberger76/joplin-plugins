@@ -414,11 +414,20 @@ off on all of them.
 
 ### 8.1 Query block display
 
-- **Rendered note**: hidden, or shown as a chip such as "Todoist: today | overdue". The
-  block's source stays in the HTML the way Joplin's own code blocks keep theirs, so the Rich
-  Text editor does not drop it on save.
-- **Markdown editor**: collapsed to a one-line chip. The raw block shows while the cursor is
-  inside it.
+- **Rendered note**: not shown, and the same in the Rich Text editor. There is no setting
+  for it (Joel, 2026-10-12: a chip there has no use). The block's source stays in the HTML
+  the way Joplin's own code blocks keep theirs, so the Rich Text editor does not drop it
+  on save.
+- **Markdown editor**: collapsed to a one-line chip. The raw block shows while the cursor
+  or the selection touches it, its first and last character included. Clicking the chip
+  puts the cursor at the end of the block's first line. How the arrow keys move past a
+  collapsed block is still to be seen in the app.
+- The chip reads "Todoist" alone. With the "Show the filter in the query block chip"
+  setting on it reads "Todoist: " and the filter, or "Todoist: default filter" for a block
+  with no `filter:` line (Joel, 2026-10-12: the plain chip is the default). Resting the
+  pointer on the chip shows the filter and when the block was last fetched, on two labelled
+  lines ("Filter: ..." and "Fetched: ...").
+- A block that is not closed yet is never collapsed.
 
 ### 8.2 Settings
 
@@ -429,8 +438,8 @@ off on all of them.
 | Default filter, for a new query block and for a block with no `filter:` line | `today \| overdue` |
 | Template notebooks (no automatic fetch) | `Templates` |
 | Template tag (no automatic fetch) | `template` |
-| Query block in rendered note | Hidden (other option: Chip) |
 | Collapse query block in editor | On |
+| Show the filter in the query block chip | Off |
 | Show task details in the link | On |
 
 ### 8.3 Commands
@@ -550,8 +559,8 @@ still need a live test.
    notebook or carry the excluded tag (section 5.3).
 6. **Tag sync skill: confirmed.** Its script skips fenced and inline code, and neither its
    tag pattern nor its mention pattern can match `##Name` or `@@Name`.
-7. **Rich Text round trip of the hidden block and the `↗` link: open.** Manual test in the
-   app, once the viewer script exists.
+7. **Rich Text round trip of the hidden block and the `↗` link: confirmed.** Joel saved a note
+   from the Rich Text editor on 2026-10-12, and the block and the links came back unchanged.
 8. **Token storage: confirmed on Joel's machine.** A setting marked secure is not written
    to `settings.json`. Joplin encrypts it with Electron's safe storage and keeps the result
    in its database (`key_values` table, key
@@ -577,10 +586,12 @@ still need a live test.
 2. The hidden query block and the link with its details survive a Rich Text save (from 9.1
    item 7).
 3. How `joplin-inline-tag-style` shows a tag at the end of a task name now that a link
-   follows it. That plugin hides a trailing tag in the rendered note but shows it as a word
-   when other content follows, unless that content starts with a symbol or emoji. The link
-   text starts with `↗`, so the tag should stay hidden, but this depends on whether the rule
-   looks inside the link.
+   follows it. **Settled on 2026-10-12.** That plugin hides a trailing tag but shows it as
+   a word when other content follows, unless that content starts with a symbol or emoji.
+   It only looked at text, not inside a link, so `Send the budget #Q4 [↗ p1](...)` rendered
+   as "Send the budget Q4 ↗ p1". It now treats a link whose text starts with a symbol the
+   same way, and the tag stays hidden. The rule is general and the two plugins do not
+   depend on each other.
 
 ## 10. Open questions
 
@@ -629,7 +640,9 @@ until the one before it is accepted.
    the default filter for a block that has none (section 3.4). Joel accepted it on
    2026-10-12, after three rounds in the app that included the Templates and Journal
    plugins and scenario 15 of section 7.1.
-6. **Display.** The collapsed query block in the editor and the hidden block or chip in the
-   rendered note. Settles checks 2 and 3 of section 9.3.
+6. **Display. Done.** The collapsed query block in the editor and the hidden block in the
+   rendered note. Joel accepted it on 2026-10-12, after trying it in the app. Checks 2
+   and 3 of section 9.3 are settled: the block and the links survive a Rich Text save,
+   and the finding of check 3 is an open item in `TODO.md`.
 7. **Wrap-up.** Remove dead links, keyboard shortcuts and toolbar buttons, the companion change to `joplin-inline-tags`, a README,
    and the plugin's entry in the repo's `CLAUDE.md`.

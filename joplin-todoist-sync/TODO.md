@@ -15,7 +15,13 @@ During testing a block with no `filter:` line was made to run with the default f
 (SPEC.md section 3.4). Not tried in the app: the dialog for a failed automatic fetch, and
 a command started while an automatic fetch is running.
 
-Next is build step 6 (Display).
+Build step 6 (Display) is accepted. Joel signed off on 2026-10-12, after trying it in the
+app: the chip in the Markdown editor, the arrow keys, the collapse setting, the hidden
+block in the rendered note and a save from the Rich Text editor (check 2 of SPEC.md
+section 9.3). At his request the chip reads "Todoist" alone unless a setting adds the
+filter, and the rendered note never shows the block.
+
+Next is build step 7 (Wrap-up).
 
 The test projects and labels in Todoist are deleted. For the next interactive session, Claude
 creates a new test project through the Todoist connector, and Joel makes a test note with a
@@ -39,6 +45,10 @@ set the API token under Options > Todoist Sync if it did not come across.
   2026-10-12: "Created 4 tasks." came back after changing a setting, with no Send run and
   nothing created in Todoist). It affects the Fetch and Sync toasts too. Find out whether
   this is Joplin's doing and whether the plugin can avoid it.
+
+- [x] `joplin-inline-tag-style` now hides a tag that is followed only by a link whose text
+  starts with a symbol, such as the Todoist link (2026-10-12). Checked with markdown-it,
+  not yet seen in the app. Delete this item once Joel confirms.
 
 - [ ] Decide how fetched tasks are sorted. Fetch writes them in the order Todoist's filter
   endpoint returns them (SPEC.md section 5.2), which is not the order the project shows in

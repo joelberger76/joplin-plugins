@@ -31,7 +31,7 @@ A tag with more of the sentence after it is shown as words: the last segment of 
 
 Other rules:
 
-- Text that starts with a symbol or emoji does not count as more of the sentence, so the tags in `## Year-End Feedback #Performance ⏱️ 08:30-09:00` are hidden.
+- Text that starts with a symbol or emoji does not count as more of the sentence, so the tags in `## Year-End Feedback #Performance ⏱️ 08:30-09:00` are hidden. A link whose text starts with a symbol counts the same way, so the tag in `Send the budget #Q4 [↗ p1](https://...)` is hidden too.
 - A heading or list item that contains only tags shows them as words, since hiding them would leave an empty heading or a bare bullet.
 - A paragraph that contains only tags is hidden entirely, so it leaves no gap.
 - A line of only tags inside a longer paragraph is hidden along with its line break.

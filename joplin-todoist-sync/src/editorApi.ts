@@ -4,6 +4,19 @@
 
 export const GET_STATE_COMMAND = 'todoistSyncGetState';
 export const APPLY_EDITS_COMMAND = 'todoistSyncApplyEdits';
+// Tells the editor script to ask for the display settings again.
+export const REFRESH_DISPLAY_COMMAND = 'todoistSyncRefreshDisplay';
+
+// What the editor script sends to index.ts to ask for the display settings,
+// and the answer.
+export const GET_DISPLAY_MESSAGE = 'getDisplay';
+
+export interface DisplaySettings {
+	// The "Collapse query block in editor" setting.
+	collapse: boolean;
+	// The "Show the filter in the query block chip" setting.
+	showFilter: boolean;
+}
 
 export interface EditorState {
 	// Identifies the session to apply edits against.

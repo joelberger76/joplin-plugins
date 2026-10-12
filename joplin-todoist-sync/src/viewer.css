@@ -1,0 +1,7 @@
+/* A todoist query block is not shown in the rendered note. Its source
+   stays in the HTML (in a "joplin-source" element) so that the Rich Text
+   editor, which saves a note by converting this HTML back to Markdown,
+   cannot drop it. */
+.todoist-query {
+	display: none;
+}

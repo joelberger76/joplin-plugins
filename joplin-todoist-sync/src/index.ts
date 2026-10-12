@@ -1,7 +1,7 @@
 import joplin from 'api';
 import { ContentScriptType, MenuItemLocation, SettingItemType, ToastType } from 'api/types';
 import { hasBlockToFetch, isTemplate, sameText } from './autoFetch';
-import { APPLY_EDITS_COMMAND, ApplyResult, EditorState, GET_STATE_COMMAND } from './editorApi';
+import { APPLY_EDITS_COMMAND, ApplyResult, DisplaySettings, EditorState, GET_DISPLAY_MESSAGE, GET_STATE_COMMAND, REFRESH_DISPLAY_COMMAND } from './editorApi';
 import { TextEdit } from './edits';
 import { FetchOptions, FetchPlan, planFetch, planNewBlock } from './fetchPlan';
 import { matchName } from './names';
@@ -18,6 +18,11 @@ const SETTING_DEFAULT_FILTER = 'todoistSyncDefaultFilter';
 const SETTING_SHOW_DETAILS = 'todoistSyncShowDetails';
 const SETTING_TEMPLATE_NOTEBOOKS = 'todoistSyncTemplateNotebooks';
 const SETTING_TEMPLATE_TAGS = 'todoistSyncTemplateTags';
+const SETTING_CHIP_FILTER = 'todoistSyncChipFilter';
+const SETTING_COLLAPSE_BLOCK = 'todoistSyncCollapseBlock';
+
+const EDITOR_SCRIPT = 'todoistSyncEditor';
+const VIEWER_SCRIPT = 'todoistSyncViewer';
 
 const SEND_COMMAND = 'todoistSyncSend';
 const FETCH_COMMAND = 'todoistSyncFetch';
@@ -517,6 +522,22 @@ joplin.plugins.register({
 				label: 'Template tag (no automatic fetch)',
 				description: 'Notes with this tag are not fetched automatically either. Separate several tags with commas.',
 			},
+			[SETTING_COLLAPSE_BLOCK]: {
+				value: true,
+				type: SettingItemType.Bool,
+				section: SETTINGS_SECTION,
+				public: true,
+				label: 'Collapse query block in editor',
+				description: 'Shows a todoist query block as a one-line chip in the Markdown editor. The block opens when the cursor is in it, or when the chip is clicked.',
+			},
+			[SETTING_CHIP_FILTER]: {
+				value: false,
+				type: SettingItemType.Bool,
+				section: SETTINGS_SECTION,
+				public: true,
+				label: 'Show the filter in the query block chip',
+				description: 'For example "Todoist: today | overdue" instead of "Todoist".',
+			},
 			[SETTING_SHOW_DETAILS]: {
 				value: true,
 				type: SettingItemType.Bool,
@@ -528,11 +549,41 @@ joplin.plugins.register({
 		});
 
 		// Loads editor.ts (compiled to editor.js) into the CodeMirror 6
-		// editor. It reads and changes the note text for the commands below.
+		// editor. It reads and changes the note text for the commands below,
+		// and collapses query blocks.
 		await joplin.contentScripts.register(
 			ContentScriptType.CodeMirrorPlugin,
-			'todoistSyncEditor',
+			EDITOR_SCRIPT,
 			'./editor.js',
+		);
+
+		// The editor script can't read settings itself, so it asks for
+		// them when it loads.
+		await joplin.contentScripts.onMessage(EDITOR_SCRIPT, async (message: { name: string }): Promise<DisplaySettings | null> => {
+			if (message?.name !== GET_DISPLAY_MESSAGE) return null;
+			return {
+				collapse: !!(await joplin.settings.value(SETTING_COLLAPSE_BLOCK)),
+				showFilter: !!(await joplin.settings.value(SETTING_CHIP_FILTER)),
+			};
+		});
+
+		// Applies a change of those settings straight away, by telling the
+		// open editor to ask again.
+		await joplin.settings.onChange(async (event) => {
+			if (!event.keys.includes(SETTING_COLLAPSE_BLOCK) && !event.keys.includes(SETTING_CHIP_FILTER)) return;
+			try {
+				await joplin.commands.execute('editor.execCommand', { name: REFRESH_DISPLAY_COMMAND });
+			} catch (error) {
+				// No Markdown editor is open. The next one asks when it loads.
+			}
+		});
+
+		// Loads viewer.ts (compiled to viewer.js) into the Markdown
+		// renderer, where it hides query blocks.
+		await joplin.contentScripts.register(
+			ContentScriptType.MarkdownItPlugin,
+			VIEWER_SCRIPT,
+			'./viewer.js',
 		);
 
 		await joplin.commands.register({
