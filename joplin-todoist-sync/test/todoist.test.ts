@@ -4,9 +4,9 @@ import { HttpFetch, TodoistClient, TodoistError, toTaskInfo } from '../src/todoi
 
 // A fake `fetch` that answers from a list and records what was asked.
 function fake(replies: Array<{ status: number; body: unknown } | Error>) {
-	const calls: Array<{ url: string; method: string; headers: Record<string, string> }> = [];
+	const calls: Array<{ url: string; method: string; headers: Record<string, string>; body?: string }> = [];
 	const httpFetch: HttpFetch = async (url, init) => {
-		calls.push({ url, method: init.method, headers: init.headers });
+		calls.push({ url, method: init.method, headers: init.headers, body: init.body });
 		const reply = replies.shift();
 		if (!reply) throw new Error('no reply left');
 		if (reply instanceof Error) throw reply;
@@ -134,4 +134,36 @@ test('closes a task with a POST, and reports a failure', async () => {
 	assert.equal(calls[0].method, 'POST');
 	assert.equal(calls[0].url, 'https://api.todoist.com/api/v1/tasks/a1/close');
 	await assert.rejects(client.closeTask('a1'), /status 404/);
+});
+
+test('Send: quick add, rename and move post JSON and return the task', async () => {
+	const { httpFetch, calls } = fake([
+		{ status: 200, body: { ...RAW, content: 'Buy \\#milk' } },
+		{ status: 200, body: { ...RAW, content: 'Buy #milk' } },
+		{ status: 200, body: { ...RAW, project_id: 'p2', parent_id: 'parent' } },
+	]);
+	const client = new TodoistClient('secret', httpFetch);
+
+	assert.equal((await client.quickAdd('Buy \\#milk tomorrow')).content, 'Buy \\#milk');
+	assert.equal((await client.renameTask('abc', 'Buy #milk')).content, 'Buy #milk');
+	assert.equal((await client.moveUnder('abc', 'parent')).projectId, 'p2');
+
+	assert.deepEqual(calls.map(call => [call.method, call.url, JSON.parse(call.body!)]), [
+		['POST', 'https://api.todoist.com/api/v1/tasks/quick', { text: 'Buy \\#milk tomorrow' }],
+		['POST', 'https://api.todoist.com/api/v1/tasks/abc', { content: 'Buy #milk' }],
+		['POST', 'https://api.todoist.com/api/v1/tasks/abc/move', { parent_id: 'parent' }],
+	]);
+	for (const call of calls) assert.equal(call.headers['Content-Type'], 'application/json');
+});
+
+test('Send: a failed create is an error, and a request without a body has no content type', async () => {
+	const { httpFetch, calls } = fake([
+		{ status: 500, body: 'oops' },
+		{ status: 200, body: { results: [{ id: 'l1', name: 'errand' }, { id: 'l2', name: 'Joel Berger' }], next_cursor: null } },
+	]);
+	const client = new TodoistClient('secret', httpFetch);
+	await assert.rejects(client.quickAdd('x'), (error: unknown) => error instanceof TodoistError && error.status === 500);
+	assert.deepEqual(await client.getLabels(), ['errand', 'Joel Berger']);
+	assert.equal(calls[1].headers['Content-Type'], undefined);
+	assert.equal(calls[1].url, 'https://api.todoist.com/api/v1/labels?limit=200');
 });

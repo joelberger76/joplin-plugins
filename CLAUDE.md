@@ -255,11 +255,11 @@ Restart Joplin after (re)installing either way.
 - In progress. `SPEC.md` in the plugin directory is the source of truth for behaviour, and
   its section 12 is the build order with the current status. Read it before changing
   anything. `TODO.md` there holds v2 ideas and things to do during the build.
-- Build steps 1 to 3 are done. Step 1 is the logic modules in `src/` (`noteParser.ts`,
+- Build steps 1 to 4 are done. Step 1 is the logic modules in `src/` (`noteParser.ts`,
   `details.ts`, `names.ts`, `sendText.ts`, `syncRules.ts`, `types.ts`) with no Joplin or
-  network dependency. Step 2 is manual Fetch: three settings, the Fetch command under
+  network dependency. Step 2 is manual Fetch: settings, the Fetch command under
   Tools > Todoist Sync, `todoist.ts` (API client, takes `fetch` as a parameter so tests can fake
-  it) and `fetchPlan.ts` (turns tasks into edits). Send, the automatic first fetch and
+  it) and `fetchPlan.ts` (turns tasks into edits). The automatic first fetch and
   the query block display are not built yet.
 - Step 3 (Sync) was accepted by Joel on 2026-10-11, after the interactive session of
   SPEC.md section 7.1. The Sync command looks up every linked task
@@ -270,6 +270,11 @@ Restart Joplin after (re)installing either way.
   Tasks are closed before the note is written. Sync first fetches any query block that
   has no `fetched:` line, then syncs. A line whose close failed is left as it
   was.
+- Step 4 (Send) was accepted by Joel on 2026-10-12. It is `sendPlan.ts`: `sendCandidates` picks the lines, `planSend` resolves
+  tokens and parents, `runSend` makes the calls (quick add, then a rename if a single `#`
+  or `@` was escaped, then a move for a subtask) and `sendEdits` links the lines.
+  `runSend` never throws, because a created task must end up linked in the note. Unlike
+  Fetch and Sync, Send is not safe to run twice: an unlinked line is sent again.
 - Problems are reported in a plugin dialog with one OK button (`showProblem` in
   `index.ts`), not `showMessageBox`, which always adds a Cancel button. Joplin sizes a
   plugin dialog from `#joplin-plugin-content`, which stays 200px wide unless that element

@@ -43,7 +43,8 @@ export interface ParsedNote {
 
 const FENCE_OPEN = /^\s*(`{3,}|~{3,})\s*([^\s`]*)/;
 const TASK_LINE = /^(\s*)([-*+])\s+\[([ xX])\](?:\s+(.*))?$/;
-const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s/;
+// Any list item, bulleted or numbered, with or without a checkbox.
+export const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s/;
 
 // A Markdown link at the end of the line that points at a Todoist task. The
 // link is recognized by its URL alone. The id is the last dash-separated

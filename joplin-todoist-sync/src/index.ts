@@ -3,16 +3,20 @@ import { ContentScriptType, MenuItemLocation, SettingItemType, ToastType } from 
 import { APPLY_EDITS_COMMAND, ApplyResult, EditorState, GET_STATE_COMMAND } from './editorApi';
 import { TextEdit } from './edits';
 import { FetchOptions, FetchPlan, planFetch, planNewBlock } from './fetchPlan';
+import { matchName } from './names';
 import { parseNote, QueryBlock } from './noteParser';
+import { planSend, reportSend, runSend, sendCandidates, sendEdits, SendScope } from './sendPlan';
 import { duplicateLinks, planSync, reportSync, syncEdits, tasksToClose, writableItems } from './syncPlan';
-import { HttpFetch, TodoistClient, TodoistError } from './todoist';
+import { HttpFetch, Project, TodoistClient, TodoistError } from './todoist';
 import { TaskInfo } from './types';
 
 const SETTINGS_SECTION = 'todoistSync';
 const SETTING_TOKEN = 'todoistSyncToken';
+const SETTING_DEFAULT_PROJECT = 'todoistSyncDefaultProject';
 const SETTING_DEFAULT_FILTER = 'todoistSyncDefaultFilter';
 const SETTING_SHOW_DETAILS = 'todoistSyncShowDetails';
 
+const SEND_COMMAND = 'todoistSyncSend';
 const FETCH_COMMAND = 'todoistSyncFetch';
 const SYNC_COMMAND = 'todoistSyncNote';
 
@@ -86,12 +90,16 @@ async function createClient(): Promise<TodoistClient | null> {
 
 // Task details show the project by name, and tasks only carry its id. The
 // Inbox is left out, because it is never shown.
-async function projectNamesFrom(client: TodoistClient): Promise<Map<string, string>> {
+function projectNamesOf(projects: Project[]): Map<string, string> {
 	const names = new Map<string, string>();
-	for (const project of await client.getProjects()) {
+	for (const project of projects) {
 		if (!project.isInbox) names.set(project.id, project.name);
 	}
 	return names;
+}
+
+async function projectNamesFrom(client: TodoistClient): Promise<Map<string, string>> {
+	return projectNamesOf(await client.getProjects());
 }
 
 // Whether the note the command started on is still the one that is open.
@@ -257,6 +265,71 @@ async function syncLines(noteId: string, editor: EditorState, client: TodoistCli
 	return reportSync(items, failedCloses, skippedGroups);
 }
 
+// The project for sent lines that name none: the exact name of the one
+// the setting refers to, or null for the Inbox. The setting is matched
+// like a `##` token, and nothing is sent if it can't be.
+function defaultProjectOf(setting: string, projects: Project[]): string | null {
+	if (!setting) return null;
+	const found = matchName(setting, projects.map(project => project.name));
+	if (found.kind === 'none') throw new Stop(`Nothing was sent. The default project "${setting}", set under Options > Todoist Sync, matches no Todoist project.`);
+	if (found.kind === 'ambiguous') throw new Stop(`Nothing was sent. The default project "${setting}", set under Options > Todoist Sync, matches more than one Todoist project: ${found.candidates.join(', ')}.`);
+	const inbox = projects.find(project => project.isInbox);
+	return inbox && inbox.name === found.name ? null : found.name;
+}
+
+// Creates tasks from the unlinked checkbox lines of the note, or of the
+// selection, and links the lines to them.
+async function sendLines(noteId: string, editor: EditorState, client: TodoistClient): Promise<Outcome> {
+	const parsed = parseNote(editor.body);
+	const scope: SendScope | null = editor.hasSelection
+		? { fromLine: editor.selectionFromLine, toLine: editor.selectionToLine }
+		: null;
+
+	const candidates = sendCandidates(parsed, scope);
+	if (!candidates.length) {
+		return { summary: 'Nothing to send.', problems: [] };
+	}
+
+	// The lists are only asked for when something needs them.
+	const showDetails = !!(await joplin.settings.value(SETTING_SHOW_DETAILS));
+	const defaultSetting = String(await joplin.settings.value(SETTING_DEFAULT_PROJECT) || '').trim();
+	const usesProjects = candidates.some(candidate => candidate.tokens.projectTokens.length);
+	const usesLabels = candidates.some(candidate => candidate.tokens.labelTokens.length);
+	const projects = showDetails || defaultSetting || usesProjects ? await client.getProjects() : [];
+	const labels = usesLabels ? await client.getLabels() : [];
+
+	const plan = planSend(parsed, candidates, {
+		projects: projects.map(project => project.name),
+		labels,
+		defaultProject: defaultProjectOf(defaultSetting, projects),
+	});
+	if (!plan.items.length) return reportSend([], plan.problems, []);
+
+	// Checked before anything is created.
+	if (!(await stillOn(noteId))) throw new Stop('The note was changed while sending, so nothing was sent. Run Send again.');
+
+	const result = await runSend(plan.items, client);
+	const problems = [...plan.problems, ...result.problems];
+	if (!result.sent.length) return reportSend([], problems, []);
+
+	const edits = sendEdits(parsed, result.sent, { showDetails, projectNames: projectNamesOf(projects) });
+	const applied = (await stillOn(noteId)) ? await applyEdits(editor.session, edits) : null;
+	if (!applied || !applied.ok) {
+		// Unlike Fetch and Sync, running Send again is not safe here.
+		const names = result.sent.map(sent => sent.task.content).join('\n');
+		throw new Stop(`${plural(result.sent.length, 'task')} created in Todoist, but the note changed while sending, so the lines were not linked. Sending them again would create the tasks a second time.\n\nCreated:\n${names}${problems.length ? `\n\n${problems.join('\n')}` : ''}`);
+	}
+
+	return reportSend(result.sent, problems, applied.skippedGroups);
+}
+
+async function sendCheckboxes() {
+	await run('sending', async () => {
+		const { noteId, editor, client } = await start();
+		return await sendLines(noteId, editor, client);
+	});
+}
+
 async function fetchTasks() {
 	await run('fetching', async () => {
 		const { noteId, editor, client } = await start();
@@ -301,6 +374,14 @@ joplin.plugins.register({
 				label: 'Todoist API token',
 				description: 'From Todoist: Settings > Integrations > Developer. Joplin stores it encrypted, with the key in the system keychain.',
 			},
+			[SETTING_DEFAULT_PROJECT]: {
+				value: '',
+				type: SettingItemType.String,
+				section: SETTINGS_SECTION,
+				public: true,
+				label: 'Default project for sent tasks',
+				description: 'The Todoist project for a sent line that has no ##Project. Leave empty for the Inbox.',
+			},
 			[SETTING_DEFAULT_FILTER]: {
 				value: 'today | overdue',
 				type: SettingItemType.String,
@@ -328,6 +409,14 @@ joplin.plugins.register({
 		);
 
 		await joplin.commands.register({
+			name: SEND_COMMAND,
+			label: 'Send tasks to Todoist',
+			iconName: 'fas fa-cloud-upload-alt',
+			enabledCondition: 'markdownEditorPaneVisible && oneNoteSelected',
+			execute: sendCheckboxes,
+		});
+
+		await joplin.commands.register({
 			name: FETCH_COMMAND,
 			label: 'Fetch tasks from Todoist',
 			iconName: 'fas fa-cloud-download-alt',
@@ -346,7 +435,7 @@ joplin.plugins.register({
 		await joplin.views.menus.create(
 			'todoistSyncMenu',
 			'Todoist Sync',
-			[{ commandName: FETCH_COMMAND }, { commandName: SYNC_COMMAND }],
+			[{ commandName: SEND_COMMAND }, { commandName: FETCH_COMMAND }, { commandName: SYNC_COMMAND }],
 			MenuItemLocation.Tools,
 		);
 	},

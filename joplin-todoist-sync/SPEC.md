@@ -1,7 +1,6 @@
 # joplin-todoist-sync: specification
 
-Status: draft 5, 2026-10-11. Build steps 1 and 2 are done. Step 3 (Sync) is built and
-waiting for the interactive session of section 7.1. Every Todoist API assumption has been
+Status: draft 5, 2026-10-12. Build steps 1 to 4 are done. Every Todoist API assumption has been
 tested live (section 9.1). A few items remain that can only be checked in the Joplin app
 during the build (section 9.3). Section 12 is the build order.
 
@@ -156,18 +155,28 @@ label lists, ignoring case, spaces, dashes and underscores:
 
 ## 4. Send
 
-Command: **Send checkboxes to Todoist**. Called Send in this document.
+Command: **Send tasks to Todoist**. Called Send in this document.
 
 - **Scope**: the lines touched by the selection if there is one, otherwise the whole note.
 - **Candidates**: unchecked, unlinked task lines with a non-empty name. Checked unlinked
   lines are skipped.
 - **Project**: the `##` token if present, otherwise the default project setting, otherwise
-  the Inbox.
+  the Inbox. A line with more than one `##` is not sent. The default project setting is
+  matched like a `##` token (section 3.5). If it matches no project, or more than one,
+  nothing is sent and the message says why.
 - **Subtasks**: a candidate indented directly under another task line becomes a subtask of
   that line's task, whether the parent is sent in the same run or was already linked. A
   subtask always lives in its parent's project, so a `##` on it is ignored and reported. If
-  the parent has no task (plain bullet, or checked and unlinked) the child is created as a
-  top-level task.
+  the parent has no task (plain bullet, checked and unlinked, or outside the selection)
+  the child is created as a top-level task. If the parent was meant to be sent in this run
+  and was not, the lines under it are not sent either.
+- **Failures**: a line that Todoist refuses is reported and the rest are still sent. A
+  rejected token or a lost connection ends the run. Whatever was created up to then is
+  linked in the note. A task that was created is always linked, also when its rename or its
+  move under the parent failed. That failure is reported.
+- **Not safe to repeat blindly**: if the note is switched away while tasks are being
+  created, their lines can't be linked. The dialog then lists the tasks, because sending
+  the lines again would create them a second time.
 - **Result**: the line is rewritten as the task name Todoist returned plus the trailing
   link. Tokens, dates and priority words leave the name and reappear, tidied, as the
   details in the link (section 3.3). Indentation is kept. For example
@@ -413,7 +422,7 @@ Four commands under Tools > Todoist Sync, also available from the command palett
 
 | Command | Short name here | What it does |
 |---|---|---|
-| Send checkboxes to Todoist | Send | Creates tasks from unlinked checkbox lines |
+| Send tasks to Todoist | Send | Creates tasks from unlinked checkbox lines |
 | Fetch tasks from Todoist | Fetch | Adds lines for tasks matching a query block |
 | Sync note with Todoist | Sync | Reconciles lines that are already linked, in both directions |
 | Remove dead Todoist links | | Unlinks lines whose task no longer exists |
@@ -597,7 +606,8 @@ until the one before it is accepted.
    the recurring scenarios against the real account, run together with Joel, who reviews
    each result. Joel signed off on 2026-10-11, with scenarios 1 to 14 and the
    cases of section 6.1 passed. Scenario 15 is tested with step 5.
-4. **Send.** Tokens, escaping, subtasks, default project.
+4. **Send. Done.** Tokens, escaping, subtasks, default project. Joel accepted it on
+   2026-10-12, after five rounds in the app against a throwaway Todoist project.
 5. **Automatic first fetch.** The note-open hook and the template exclusions. Try it with the
    Journal and Templates plugins.
 6. **Display.** The collapsed query block in the editor and the hidden block or chip in the

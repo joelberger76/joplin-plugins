@@ -49,12 +49,17 @@ export default (_context: { contentScriptId: string; postMessage: any }) => {
 
 				session = { id: nextSessionId++, changes: ChangeSet.empty(state.doc.length).desc };
 
+				// A selection that ends at the very start of a line does not
+				// touch that line, as when whole lines are selected.
+				const lastLine = state.doc.lineAt(main.to);
+				const endsBeforeLine = !main.empty && main.to === lastLine.from && main.to > main.from;
+
 				return {
 					session: session.id,
 					body: state.doc.toString(),
 					cursorLine: state.doc.lineAt(main.head).number - 1,
 					selectionFromLine: state.doc.lineAt(main.from).number - 1,
-					selectionToLine: state.doc.lineAt(main.to).number - 1,
+					selectionToLine: lastLine.number - 1 - (endsBeforeLine ? 1 : 0),
 					hasSelection: !main.empty,
 				};
 			});

@@ -1,14 +1,17 @@
 # TODO
 
-## Where we left off (2026-10-11)
+## Where we left off (2026-10-12)
 
-Build step 3 (Sync) is accepted. Joel signed off on 2026-10-11, after scenarios 1 to 14 of
-SPEC.md section 7.1 and the four cases of section 6.1 all passed against his real Todoist
-account. Scenario 15 belongs to build step 5 (automatic first fetch).
+Build step 4 (Send) is accepted. Joel signed off on 2026-10-12, after five rounds in the
+app against his real Todoist account: plain lines, date and priority words, `##` and `@@`
+tokens, the reported problems, a selection, subtasks, a recurring task and the default
+project setting. Not tried in the app, only in unit tests: Todoist refusing a line, a lost
+connection, switching notes while sending, and editing a line while it is sent.
 
-Next is build step 4 (Send).
+Next is build step 5 (automatic first fetch), which also covers scenario 15 of SPEC.md
+section 7.1.
 
-The `SyncTest` project in Todoist is deleted. For the next interactive session, Claude
+The `SendTest` projects and labels in Todoist are deleted. For the next interactive session, Claude
 creates a new test project through the Todoist connector, and Joel makes a test note with a
 query block for it. Joel ticks boxes and runs the commands in Joplin. Claude does the
 Todoist side and checks the result there.
@@ -25,6 +28,11 @@ set the API token under Options > Todoist Sync if it did not come across.
 
 - [ ] Add keyboard shortcuts for the commands, and toolbar buttons with icons (build step
   7). Decide with Joel which keys and which commands get a button.
+
+- [ ] Joplin shows the plugin's last toast again when the Options screen is closed (Joel,
+  2026-10-12: "Created 4 tasks." came back after changing a setting, with no Send run and
+  nothing created in Todoist). It affects the Fetch and Sync toasts too. Find out whether
+  this is Joplin's doing and whether the plugin can avoid it.
 
 - [ ] Decide how fetched tasks are sorted. Fetch writes them in the order Todoist's filter
   endpoint returns them (SPEC.md section 5.2), which is not the order the project shows in

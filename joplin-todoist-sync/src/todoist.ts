@@ -65,12 +65,15 @@ export class TodoistClient {
 
 	// Sends one request and returns the reply, whatever its status. Only a
 	// rejected token and an unreachable server are turned into errors here.
-	private async send(method: string, path: string, what: string): Promise<{ status: number; text: string }> {
+	private async send(method: string, path: string, what: string, body?: unknown): Promise<{ status: number; text: string }> {
 		let response: HttpResponse;
 		try {
+			const headers: Record<string, string> = { Authorization: `Bearer ${this.token}` };
+			if (body !== undefined) headers['Content-Type'] = 'application/json';
 			response = await this.httpFetch(BASE + path, {
 				method,
-				headers: { Authorization: `Bearer ${this.token}` },
+				headers,
+				...(body !== undefined ? { body: JSON.stringify(body) } : {}),
 			});
 		} catch (error) {
 			throw new TodoistError(`Could not reach Todoist (${what}). Check your connection.`, null);
@@ -102,6 +105,13 @@ export class TodoistClient {
 		const reply = await this.send('GET', path, what);
 		if (reply.status < 200 || reply.status >= 300) throw this.failure(reply, what);
 		return this.parse(reply, what);
+	}
+
+	// Sends `body` as JSON and returns the task in the reply.
+	private async postForTask(path: string, body: unknown, what: string): Promise<TaskInfo> {
+		const reply = await this.send('POST', path, what, body);
+		if (reply.status < 200 || reply.status >= 300) throw this.failure(reply, what);
+		return toTaskInfo(this.parse(reply, what));
 	}
 
 	// Follows `next_cursor` until every page has been read.
@@ -143,6 +153,29 @@ export class TodoistClient {
 			name: String(project.name ?? ''),
 			isInbox: !!project.inbox_project,
 		}));
+	}
+
+	// The names of the account's labels.
+	public async getLabels(): Promise<string[]> {
+		const raw = await this.getAll('/labels', 'fetching labels');
+		return raw.map(label => String(label.name ?? ''));
+	}
+
+	// Creates a task from text in Todoist's quick add syntax, which reads
+	// dates, priority, `#project` and `@label` out of it.
+	public async quickAdd(text: string): Promise<TaskInfo> {
+		return await this.postForTask('/tasks/quick', { text }, 'creating a task');
+	}
+
+	// Sets a task's name. Unlike quick add, this leaves `#` and `@` in the
+	// name as plain text (SPEC.md section 9.1, item 1).
+	public async renameTask(id: string, content: string): Promise<TaskInfo> {
+		return await this.postForTask(`/tasks/${encodeURIComponent(id)}`, { content }, 'naming a task');
+	}
+
+	// Makes a task a subtask of another. It moves to the parent's project.
+	public async moveUnder(id: string, parentId: string): Promise<TaskInfo> {
+		return await this.postForTask(`/tasks/${encodeURIComponent(id)}/move`, { parent_id: parentId }, 'moving a task under its parent');
 	}
 
 	// One task by id, completed or not. Returns null when Todoist has no
