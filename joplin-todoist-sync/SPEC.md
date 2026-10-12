@@ -212,7 +212,13 @@ For each query block in the note, the open tasks matching its filter, except:
 
 - Tasks are written as unchecked linked lines, with their details (section 3.3), directly
   below the block. If a list already follows the block, they are appended to the end of it.
-- Order is the order Todoist returns. The list is flat, subtasks included.
+- Order is the order Todoist shows (Joel, 2026-10-12). Tasks are grouped by project, in
+  the order of the sidebar: the Inbox, then each project followed by its sub-projects.
+  Within a project, the tasks outside any section come first, then each section in turn,
+  and inside those the order arranged in Todoist. A subtask follows its parent when the
+  parent was fetched too. This takes the project list on every fetch that finds a task,
+  and the section list when a fetched task is in a section.
+- The list is flat, subtasks included.
 - **Add-only**: a fetch never removes or reorders existing lines. A line whose task no longer
   matches the filter stays, and Sync keeps it current.
 - `fetched:` is set to the local date and time, also when there were no results.
@@ -290,13 +296,18 @@ If Todoist reports that the task does not exist, the line and its link are left 
 and the line is listed in the report. Sync never removes such a link, because a wrong API
 token makes every task look missing.
 
-### 6.4 Remove dead links
+### 6.4 Remove links
 
-Command: **Remove dead Todoist links**. For every linked line in the current note whose
-task Todoist reports as not existing, the trailing link is removed and the line becomes a
-plain checkbox. It asks for confirmation first, showing how many links will be removed. If
-every linked line in the note would be affected, the confirmation says so and suggests
-checking the API token.
+Command: **Remove Todoist links** (Joel, 2026-10-11). It removes the link from every linked
+line in the selection, or in the whole note when nothing is selected, the same scope rule
+as Send. The lines become plain checkboxes and the tasks stay in Todoist.
+
+- It asks for confirmation first, with the number of links, and warns that sending the
+  lines again would create the tasks a second time.
+- It asks Todoist nothing, so it works without an API token.
+- This is also how a link to a task that no longer exists is cleared (section 6.3). A
+  "Remove dead Todoist links" command, which looked those lines up and unlinked them
+  after a confirmation, was built and then dropped on 2026-10-12: Joel would not use it.
 
 ### 6.5 Reporting
 
@@ -309,6 +320,10 @@ Used by all commands and the automatic fetch:
   problem giving the task name and the reason, for example "Not found in Todoist: Call the
   plumber" or "Not sent, `@@Jo` matches Joel Berger and John Smith: Email Jo".
 - Nothing is written into the note to report a problem.
+- Joplin keeps a plugin's last toast and shows it again when its main screen comes back,
+  for example after Options is closed (seen by Joel on 2026-10-12, and confirmed in
+  Joplin's `PluginNotification` component). So the plugin replaces each toast with an
+  empty one once it has had its six seconds, which Joplin does not show.
 
 ## 7. Recurring tasks
 
@@ -441,6 +456,13 @@ off on all of them.
 | Collapse query block in editor | On |
 | Show the filter in the query block chip | Off |
 | Show task details in the link | On |
+| Toolbar buttons | `Sync` |
+
+"Toolbar buttons" lists the commands that get a button on the editor toolbar: any of
+Send, Fetch and Sync, separated by commas, in the order the buttons should appear. Empty
+means none, and a word that is none of the three is ignored. (Joel, 2026-10-12: which
+commands get a button is a setting, and one row instead of three checkboxes.) Joplin
+can't take a button away while it runs, so a change shows after a restart.
 
 ### 8.3 Commands
 
@@ -451,15 +473,26 @@ Four commands under Tools > Todoist Sync, also available from the command palett
 | Send tasks to Todoist | Send | Creates tasks from unlinked checkbox lines |
 | Fetch tasks from Todoist | Fetch | Adds lines for tasks matching a query block |
 | Sync note with Todoist | Sync | Reconciles lines that are already linked, in both directions |
-| Remove dead Todoist links | | Unlinks lines whose task no longer exists |
+| Remove Todoist links | | Unlinks every linked line in the selection, or in the note |
 
 The submenu is called "Todoist Sync". Each command name says "Todoist" once, so it also
 reads well in the command palette, where the submenu name is not shown.
 
 Send and Fetch both add new links, in opposite directions, and each is a deliberate act.
 Sync never creates a task, and adds lines only for a query block that has never run, so
-it is safe to run on any note at any time. They are kept separate for that reason. Keyboard shortcuts and toolbar buttons are
-added in the wrap-up step (see `TODO.md`).
+it is safe to run on any note at any time. They are kept separate for that reason.
+
+Default keyboard shortcuts, which can be changed under Options > Keyboard Shortcuts:
+
+| Command | macOS | Windows and Linux |
+|---|---|---|
+| Send | Cmd+Option+Shift+T | Ctrl+Alt+Shift+T |
+| Fetch | Cmd+Option+Shift+F | Ctrl+Alt+Shift+F |
+| Sync | Cmd+Option+Shift+S | Ctrl+Alt+Shift+S |
+
+Joel chose the letters on 2026-10-12. Shift was added because Joplin already uses
+Cmd+Option+S (toggle the sidebar) and Cmd+Option+T (edit tags) on macOS, and Ctrl+Alt+S
+and Ctrl+Alt+T on the other systems.
 
 ## 9. Technical approach
 
@@ -570,11 +603,14 @@ still need a live test.
 
 ### 9.2 Companion change
 
-`joplin-inline-tags` opens its autocomplete on any `#`. Two changes to it:
+`joplin-inline-tags` opens its autocomplete on any `#`. Two things were wanted from it:
 
 - Stop it from triggering when the `#` follows another `#`, so it stays out of the way
-  while typing `##Project`.
-- Stop it from triggering inside a code block. A query block's filter uses `#Project`, and
+  while typing `##Project`. **Done on 2026-10-12**, in both its CodeMirror 6 and
+  CodeMirror 5 scripts.
+- Stop it from triggering inside a code block. **Already the case**: its CodeMirror 6
+  script skips `FencedCode` and `CodeBlock`, and its CodeMirror 5 script skips fences.
+  Joel saw it stay closed inside a `todoist` block on 2026-10-12. A query block's filter uses `#Project`, and
   accepting a suggestion there would attach a Joplin tag to the note. This is the only way
   a filter can create a tag: `joplin-inline-tag-style` and the `joplin-tag-sync` skill both
   skip code blocks already.
@@ -644,5 +680,8 @@ until the one before it is accepted.
    rendered note. Joel accepted it on 2026-10-12, after trying it in the app. Checks 2
    and 3 of section 9.3 are settled: the block and the links survive a Rich Text save,
    and the finding of check 3 is an open item in `TODO.md`.
-7. **Wrap-up.** Remove dead links, keyboard shortcuts and toolbar buttons, the companion change to `joplin-inline-tags`, a README,
-   and the plugin's entry in the repo's `CLAUDE.md`.
+7. **Wrap-up. Done.** Remove links (section 6.4), keyboard shortcuts and toolbar buttons
+   (section 8), the order of fetched tasks (section 5.2), the companion change to
+   `joplin-inline-tags`, the fix for the replayed toast, a README, and the plugin's entry
+   in the repo's `CLAUDE.md`. Joel accepted it on 2026-10-12, after six rounds in the app
+   against a throwaway Todoist project.

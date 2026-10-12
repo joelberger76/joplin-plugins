@@ -22,6 +22,12 @@ export interface TaskInfo {
 	due: TaskDue | null;
 	projectId: string;
 	labels: string[];
+	// Where the task sits in its project, for the order Fetch writes tasks
+	// in. Left out by code that does not care about order.
+	sectionId?: string | null;
+	parentId?: string | null;
+	// The task's position among those with the same parent.
+	order?: number;
 }
 
 // A local calendar date and, for a task due at a time of day, a local time.

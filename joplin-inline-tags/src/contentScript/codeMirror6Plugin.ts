@@ -41,6 +41,12 @@ const codeMirror6Plugin = (context: PluginContext, CodeMirror: any) => {
 			return null;
 		}
 
+		// "##" is not a tag. joplin-todoist-sync uses "##Name" for a Todoist
+		// project, and the list would get in the way while typing one.
+		if (prefix.from > 0 && completionContext.state.sliceDoc(prefix.from - 1, prefix.from) === '#') {
+			return null;
+		}
+
 		if (isInCodeBlock(completionContext.state, prefix.from, prefix.to)) {
 			return null;
 		}

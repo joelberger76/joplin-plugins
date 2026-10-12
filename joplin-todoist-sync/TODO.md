@@ -2,57 +2,22 @@
 
 ## Where we left off (2026-10-12)
 
-Build step 4 (Send) is accepted. Joel signed off on 2026-10-12, after five rounds in the
-app against his real Todoist account: plain lines, date and priority words, `##` and `@@`
-tokens, the reported problems, a selection, subtasks, a recurring task and the default
-project setting. Not tried in the app, only in unit tests: Todoist refusing a line, a lost
-connection, switching notes while sending, and editing a line while it is sent.
+All seven build steps of SPEC.md section 12 are done and accepted by Joel. Step 6 (Display)
+and step 7 (Wrap-up) were accepted on 2026-10-12, each after rounds in the app against his
+real Todoist account. The "Remove dead Todoist links" command was built and then dropped
+at his request.
 
-Build step 5 (automatic first fetch) is accepted. Joel signed off on 2026-10-12, after
-three rounds in the app: a plain note, the template notebook and tag, re-arming, the Rich
-Text editor, and the Templates and Journal plugins (scenario 15 of SPEC.md section 7.1).
-During testing a block with no `filter:` line was made to run with the default filter
-(SPEC.md section 3.4). Not tried in the app: the dialog for a failed automatic fetch, and
-a command started while an automatic fetch is running.
+Not seen in the app: the tag that stays hidden before a Todoist link in the rendered note
+(the `joplin-inline-tag-style` change), the dialog for a failed automatic fetch, a command
+started while an automatic fetch is running, and the Send failures that only unit tests
+cover (Todoist refusing a line, a lost connection, switching notes while sending, editing
+a line while it is sent).
 
-Build step 6 (Display) is accepted. Joel signed off on 2026-10-12, after trying it in the
-app: the chip in the Markdown editor, the arrow keys, the collapse setting, the hidden
-block in the rendered note and a save from the Rich Text editor (check 2 of SPEC.md
-section 9.3). At his request the chip reads "Todoist" alone unless a setting adds the
-filter, and the rendered note never shows the block.
-
-Next is build step 7 (Wrap-up).
-
-The test projects and labels in Todoist are deleted. For the next interactive session, Claude
-creates a new test project through the Todoist connector, and Joel makes a test note with a
-query block for it. Joel ticks boxes and runs the commands in Joplin. Claude does the
-Todoist side and checks the result there.
+No test data is left in Todoist. For any later interactive session, Claude creates a
+throwaway project through the Todoist connector and deletes it afterwards.
 
 On another computer: install `publish/com.joelberger.todoist-sync.jpl`, restart Joplin, and
 set the API token under Options > Todoist Sync if it did not come across.
-
-## During the build
-
-- [ ] Add a command that removes the Todoist links from the current note, leaving plain
-  checkbox lines (Joel, 2026-10-11). Different from "Remove dead Todoist links" (SPEC.md
-  section 6.4), which only unlinks lines whose task no longer exists. Decide whether it
-  covers the whole note or the selection, and add it to SPEC.md.
-
-- [ ] Add keyboard shortcuts for the commands, and toolbar buttons with icons (build step
-  7). Decide with Joel which keys and which commands get a button.
-
-- [ ] Joplin shows the plugin's last toast again when the Options screen is closed (Joel,
-  2026-10-12: "Created 4 tasks." came back after changing a setting, with no Send run and
-  nothing created in Todoist). It affects the Fetch and Sync toasts too. Find out whether
-  this is Joplin's doing and whether the plugin can avoid it.
-
-- [x] `joplin-inline-tag-style` now hides a tag that is followed only by a link whose text
-  starts with a symbol, such as the Todoist link (2026-10-12). Checked with markdown-it,
-  not yet seen in the app. Delete this item once Joel confirms.
-
-- [ ] Decide how fetched tasks are sorted. Fetch writes them in the order Todoist's filter
-  endpoint returns them (SPEC.md section 5.2), which is not the order the project shows in
-  Todoist (Joel, 2026-10-11, seen with the `SyncTest` project).
 
 ## v2
 

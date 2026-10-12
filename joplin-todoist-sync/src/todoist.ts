@@ -24,6 +24,10 @@ export interface Project {
 	id: string;
 	name: string;
 	isInbox: boolean;
+	// The project above it, and its position among those with the same
+	// parent.
+	parentId: string | null;
+	order: number;
 }
 
 // An error with a message that can be shown to the user as it is.
@@ -51,6 +55,9 @@ export function toTaskInfo(raw: any): TaskInfo {
 			: null,
 		projectId: String(raw.project_id ?? ''),
 		labels: Array.isArray(raw.labels) ? raw.labels.map(String) : [],
+		sectionId: raw.section_id ? String(raw.section_id) : null,
+		parentId: raw.parent_id ? String(raw.parent_id) : null,
+		order: Number(raw.child_order ?? raw.order ?? 0),
 	};
 }
 
@@ -152,7 +159,21 @@ export class TodoistClient {
 			id: String(project.id),
 			name: String(project.name ?? ''),
 			isInbox: !!project.inbox_project,
+			parentId: project.parent_id ? String(project.parent_id) : null,
+			order: Number(project.child_order ?? project.order ?? 0),
 		}));
+	}
+
+	// The place of every section among all sections, by section id.
+	// Sections can share a `section_order` (two made through the API both
+	// got 1, seen on 2026-10-12), so those keep the order Todoist lists
+	// them in.
+	public async getSectionOrder(): Promise<Map<string, number>> {
+		const raw = await this.getAll('/sections', 'fetching sections');
+		const sorted = raw
+			.map((section, index) => ({ id: String(section.id), order: Number(section.section_order ?? section.order ?? 0), index }))
+			.sort((a, b) => a.order - b.order || a.index - b.index);
+		return new Map(sorted.map((section, rank) => [section.id, rank] as [string, number]));
 	}
 
 	// The names of the account's labels.

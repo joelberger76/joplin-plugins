@@ -51,6 +51,10 @@ const codeMirror5Plugin = (context: PluginContext, CodeMirror: any) => {
 		if (!value) return;
 		cm.on('inputRead', async function (cm1, change) {
 			if (!cm1.state.completionActive && change.text[0] === '#') {
+				// "##" is not a tag (see codeMirror6Plugin.ts).
+				if (change.from.ch > 0 && cm1.getRange({line: change.from.line, ch: change.from.ch - 1}, change.from) === '#') {
+					return;
+				}
 				const content = await cm1.getValue().split('\n');
 				let count=0;
 				for(let i=0;i<content.length;i++){

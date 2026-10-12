@@ -1,6 +1,7 @@
 import joplin from 'api';
-import { ContentScriptType, MenuItemLocation, SettingItemType, ToastType } from 'api/types';
-import { hasBlockToFetch, isTemplate, sameText } from './autoFetch';
+import { ContentScriptType, MenuItemLocation, SettingItemType, ToastType, ToolbarButtonLocation } from 'api/types';
+import { hasBlockToFetch, isTemplate, namesIn, sameText } from './autoFetch';
+import { sortForNote } from './fetchOrder';
 import { APPLY_EDITS_COMMAND, ApplyResult, DisplaySettings, EditorState, GET_DISPLAY_MESSAGE, GET_STATE_COMMAND, REFRESH_DISPLAY_COMMAND } from './editorApi';
 import { TextEdit } from './edits';
 import { FetchOptions, FetchPlan, planFetch, planNewBlock } from './fetchPlan';
@@ -10,6 +11,7 @@ import { planSend, reportSend, runSend, sendCandidates, sendEdits, SendScope } f
 import { duplicateLinks, planSync, reportSync, syncEdits, tasksToClose, writableItems } from './syncPlan';
 import { HttpFetch, Project, TodoistClient, TodoistError } from './todoist';
 import { TaskInfo } from './types';
+import { confirmAll, linkedLines, reportUnlink, unlinkEdits, UnlinkScope } from './unlinkPlan';
 
 const SETTINGS_SECTION = 'todoistSync';
 const SETTING_TOKEN = 'todoistSyncToken';
@@ -21,12 +23,15 @@ const SETTING_TEMPLATE_TAGS = 'todoistSyncTemplateTags';
 const SETTING_CHIP_FILTER = 'todoistSyncChipFilter';
 const SETTING_COLLAPSE_BLOCK = 'todoistSyncCollapseBlock';
 
+const SETTING_BUTTONS = 'todoistSyncButtons';
+
 const EDITOR_SCRIPT = 'todoistSyncEditor';
 const VIEWER_SCRIPT = 'todoistSyncViewer';
 
 const SEND_COMMAND = 'todoistSyncSend';
 const FETCH_COMMAND = 'todoistSyncFetch';
 const SYNC_COMMAND = 'todoistSyncNote';
+const REMOVE_LINKS_COMMAND = 'todoistSyncRemoveLinks';
 
 const NEEDS_MARKDOWN_EDITOR = 'Todoist Sync works in the Markdown editor. Open the note there and try again.';
 const NEEDS_TOKEN = 'Set your Todoist API token first, under Options > Todoist Sync.';
@@ -54,8 +59,19 @@ async function showProblem(message: string) {
 	await dialogs.open(problemDialog);
 }
 
+const TOAST_MS = 6000;
+let lastToast = 0;
+
+// Joplin keeps the last toast and shows it again whenever its main screen
+// comes back, for example when Options is closed. So once a toast has had
+// its time, it is replaced with an empty one, which Joplin does not show.
 async function showDone(message: string) {
-	await joplin.views.dialogs.showToast({ message, type: ToastType.Success });
+	const toast = ++lastToast;
+	await joplin.views.dialogs.showToast({ message, type: ToastType.Success, duration: TOAST_MS });
+	setTimeout(() => {
+		if (toast !== lastToast) return;
+		void joplin.views.dialogs.showToast({ message: '', duration: 0 }).catch(() => undefined);
+	}, TOAST_MS + 500);
 }
 
 function pad(value: number): string {
@@ -133,7 +149,9 @@ interface Outcome {
 // Thrown to stop a command with a message for the user.
 class Stop extends Error {}
 
-async function showOutcome(outcome: Outcome) {
+// Nothing is shown for null: the command was cancelled.
+async function showOutcome(outcome: Outcome | null) {
+	if (!outcome) return;
 	if (outcome.problems.length) await showProblem(`${outcome.summary}\n\n${outcome.problems.join('\n')}`);
 	else await showDone(outcome.summary);
 }
@@ -162,7 +180,7 @@ function inTurn(job: () => Promise<void>): Promise<void> {
 }
 
 // Runs a command and shows what it returns, or why it stopped.
-async function run(doing: string, command: () => Promise<Outcome>) {
+async function run(doing: string, command: () => Promise<Outcome | null>) {
 	await inTurn(async () => {
 		try {
 			await showOutcome(await command());
@@ -211,8 +229,16 @@ async function fetchInto(noteId: string, editor: EditorState, client: TodoistCli
 		newBlockTasks = await client.getTasksByFilter(defaultFilter);
 	}
 
-	const anyTasks = results.some(result => result.tasks.length) || !!(newBlockTasks && newBlockTasks.length);
-	const projectNames = showDetails && anyTasks ? await projectNamesFrom(client) : new Map<string, string>();
+	// The tasks are written in the order Todoist shows them, which takes
+	// the project list, and the sections when a task is in one.
+	const fetched = [...results.map(result => result.tasks), newBlockTasks ?? []];
+	const anyTasks = fetched.some(tasks => tasks.length);
+	const projects = anyTasks ? await client.getProjects() : [];
+	const inSection = fetched.some(tasks => tasks.some(task => task.sectionId));
+	const sectionOrder = inSection ? await client.getSectionOrder() : new Map<string, number>();
+	for (const result of results) result.tasks = sortForNote(result.tasks, projects, sectionOrder);
+	if (newBlockTasks) newBlockTasks = sortForNote(newBlockTasks, projects, sectionOrder);
+	const projectNames = showDetails ? projectNamesOf(projects) : new Map<string, string>();
 
 	const options: FetchOptions = { today: now, timestamp: timestamp(now), showDetails, projectNames };
 	const plan: FetchPlan = newBlockTasks
@@ -382,6 +408,34 @@ async function syncNote() {
 	});
 }
 
+// Asks before links are removed. True for OK.
+async function confirmed(message: string): Promise<boolean> {
+	return (await joplin.views.dialogs.showMessageBox(message)) === 0;
+}
+
+// Removes every Todoist link in the selection, or in the note when nothing
+// is selected (SPEC.md section 6.4). Todoist is not asked anything, so it
+// needs no token.
+async function removeLinks() {
+	await run('removing links', async () => {
+		const note = await joplin.workspace.selectedNote();
+		const editor = await readEditor();
+		if (!note || !editor) throw new Stop(NEEDS_MARKDOWN_EDITOR);
+
+		const parsed = parseNote(editor.body);
+		const scope: UnlinkScope | null = editor.hasSelection
+			? { fromLine: editor.selectionFromLine, toLine: editor.selectionToLine }
+			: null;
+		const lines = linkedLines(parsed, scope);
+		if (!lines.length) return { summary: 'No Todoist links to remove.', problems: [] };
+		if (!(await confirmed(confirmAll(lines, !!scope)))) return null;
+
+		const applied = (await stillOn(note.id)) ? await applyEdits(editor.session, unlinkEdits(parsed, lines)) : null;
+		if (!applied || !applied.ok) throw new Stop('The note was changed meanwhile, so no link was removed. Run the command again.');
+		return reportUnlink(lines, applied.skippedGroups);
+	});
+}
+
 // How long the automatic fetch waits for the editor to show a note that
 // was just opened: this many tries, this far apart.
 const EDITOR_TRIES = 20;
@@ -546,6 +600,14 @@ joplin.plugins.register({
 				label: 'Show task details in the link',
 				description: 'A recurring mark, priority, project and labels after the link arrow.',
 			},
+			[SETTING_BUTTONS]: {
+				value: 'Sync',
+				type: SettingItemType.String,
+				section: SETTINGS_SECTION,
+				public: true,
+				label: 'Toolbar buttons',
+				description: 'The commands that get a button on the editor toolbar: any of Send, Fetch and Sync, separated by commas. Leave empty for none. Restart Joplin to see a change.',
+			},
 		});
 
 		// Loads editor.ts (compiled to editor.js) into the CodeMirror 6
@@ -610,12 +672,42 @@ joplin.plugins.register({
 			execute: syncNote,
 		});
 
+		await joplin.commands.register({
+			name: REMOVE_LINKS_COMMAND,
+			label: 'Remove Todoist links',
+			iconName: 'fas fa-unlink',
+			enabledCondition: 'markdownEditorPaneVisible && oneNoteSelected',
+			execute: removeLinks,
+		});
+
+		// No separator in here: Joplin builds every item of a plugin's
+		// submenu from its command, and one without a command breaks the
+		// whole menu bar.
 		await joplin.views.menus.create(
 			'todoistSyncMenu',
 			'Todoist Sync',
-			[{ commandName: SEND_COMMAND }, { commandName: FETCH_COMMAND }, { commandName: SYNC_COMMAND }],
+			[
+				{ commandName: SEND_COMMAND, accelerator: 'CmdOrCtrl+Alt+Shift+T' },
+				{ commandName: FETCH_COMMAND, accelerator: 'CmdOrCtrl+Alt+Shift+F' },
+				{ commandName: SYNC_COMMAND, accelerator: 'CmdOrCtrl+Alt+Shift+S' },
+				{ commandName: REMOVE_LINKS_COMMAND },
+			],
 			MenuItemLocation.Tools,
 		);
+
+		// A toolbar button for each command the setting names, in that
+		// order. Joplin has no way to take a button away again, so a
+		// change of the setting shows after a restart.
+		const buttons: Record<string, [string, string]> = {
+			send: ['todoistSyncSendButton', SEND_COMMAND],
+			fetch: ['todoistSyncFetchButton', FETCH_COMMAND],
+			sync: ['todoistSyncSyncButton', SYNC_COMMAND],
+		};
+		const wanted = namesIn(String(await joplin.settings.value(SETTING_BUTTONS) || ''));
+		for (const name of new Set(wanted)) {
+			if (!buttons[name]) continue;
+			await joplin.views.toolbarButtons.create(buttons[name][0], buttons[name][1], ToolbarButtonLocation.EditorToolbar);
+		}
 
 		// The automatic first fetch (SPEC.md section 5.3).
 		await joplin.workspace.onNoteSelectionChange(() => {

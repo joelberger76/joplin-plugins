@@ -27,9 +27,10 @@ treat each plugin directory as its own project and `cd` into it before running a
   (`- [/]`, `- [>]`, `- [!]` and so on) as colored icons in the rendered note and the Markdown
   editor. Uses a markdown-it content script, a CodeMirror 6 content script and generated icon
   styles.
-- `joplin-todoist-sync/`: in progress. Sends checkboxes in the current note to Todoist,
-  fetches Todoist tasks into the note from a `todoist` query block, and syncs completion,
-  names and details for linked lines. Built step by step from `SPEC.md` in its directory.
+- `joplin-todoist-sync/`: sends checkboxes in the current note to Todoist, fetches Todoist
+  tasks into the note from a `todoist` query block, and syncs completion, names and
+  details for linked lines. Built step by step from `SPEC.md` in its directory, and
+  complete: all seven build steps are accepted.
 
 Each plugin directory is internally structured the same way (this is the generator's standard
 layout, not something specific to either plugin):
@@ -59,8 +60,9 @@ npm run update    # pulls the latest generator-joplin scaffold and merges it in
 ```
 
 There is no lint or test script in most plugins; `npm run dist` (which runs `tsc`/webpack) is
-the correctness check available. The exception is `joplin-alternate-checkboxes/`, which adds
-`npm test` and `npm run icons` (see its architecture notes).
+the correctness check available. The exceptions are `joplin-alternate-checkboxes/`, which adds
+`npm test` and `npm run icons`, and `joplin-todoist-sync/`, which adds `npm test` (see their
+architecture notes).
 
 `npm run dist` runs three webpack passes in sequence: compile `src/index.ts` (`buildMain`),
 compile any `extraScripts` from `plugin.config.json` (`buildExtraScripts`), then zip `dist/`
@@ -201,6 +203,8 @@ Restart Joplin after (re)installing either way.
   offer "Create new tag".
 - The CM6 completion source returns `filter: false` (it does its own filtering), so the
   matched text is only highlighted because it also returns `getMatch`.
+- The autocomplete does not open when the `#` follows another `#`. `joplin-todoist-sync`
+  uses `##Name` for a Todoist project. Code blocks were already skipped upstream.
 
 ### joplin-alternate-checkboxes
 
@@ -255,10 +259,10 @@ Restart Joplin after (re)installing either way.
 
 ### joplin-todoist-sync
 
-- In progress. `SPEC.md` in the plugin directory is the source of truth for behaviour, and
+- `SPEC.md` in the plugin directory is the source of truth for behaviour, and
   its section 12 is the build order with the current status. Read it before changing
-  anything. `TODO.md` there holds v2 ideas and things to do during the build.
-- Build steps 1 to 6 are done. Step 1 is the logic modules in `src/` (`noteParser.ts`,
+  anything. `TODO.md` there holds v2 ideas.
+- All seven build steps are done. Step 1 is the logic modules in `src/` (`noteParser.ts`,
   `details.ts`, `names.ts`, `sendText.ts`, `syncRules.ts`, `types.ts`) with no Joplin or
   network dependency. Step 2 is manual Fetch: settings, the Fetch command under
   Tools > Todoist Sync, `todoist.ts` (API client, takes `fetch` as a parameter so tests can fake
@@ -297,6 +301,28 @@ Restart Joplin after (re)installing either way.
   writes Joplin's `joplin-editable` and `joplin-source` structure, so the Rich Text editor
   restores the block from its source on save, and `viewer.css` hides it. Joel chose to
   have no chip and no setting for the rendered note.
+- Step 7 (Wrap-up) was accepted by Joel on 2026-10-12. `unlinkPlan.ts` is the pure part of "Remove
+  Todoist links" (the selection, or the whole note). It confirms with `showMessageBox`,
+  whose OK and Cancel buttons fit a question. A "Remove dead Todoist links" command was
+  built and dropped the same day, because Joel would not use it. A command returns
+  `null` when it was cancelled, and nothing is shown.
+- `fetchOrder.ts` sorts fetched tasks the way Todoist shows them: by project in sidebar
+  order, then section, then the task's position, with a subtask after its parent. So a
+  fetch that finds tasks always asks for the project list, and for the sections when a
+  task is in one.
+- Send, Fetch and Sync have default shortcuts (Cmd/Ctrl+Alt+Shift+T, F and S), set as
+  accelerators on the menu items. Without Shift they clash with Joplin's own. The
+  "Toolbar buttons" setting is a comma-separated list of the commands that get a button.
+  It is one text setting because Joplin can't group settings within a section, and three
+  checkboxes looked clumsy to Joel. The plugin API can't remove a button, so the buttons
+  are created at start from the setting and a change needs a restart.
+- Joplin keeps a plugin's last toast in its state and shows it again whenever the main
+  screen is mounted again, for example when Options is closed. `showDone` in `index.ts`
+  therefore sends an empty toast once the real one has had its time.
+- Never put a `{ type: 'separator' }` item in the plugin's submenu. Joplin turns every
+  item of a plugin submenu into a command menu item, and one without a command throws
+  while the menu bar is built, which leaves the app with no menus at all (seen on
+  2026-10-12).
 - Problems are reported in a plugin dialog with one OK button (`showProblem` in
   `index.ts`), not `showMessageBox`, which always adds a Cancel button. Joplin sizes a
   plugin dialog from `#joplin-plugin-content`, which stays 200px wide unless that element

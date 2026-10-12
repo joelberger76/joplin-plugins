@@ -25,6 +25,7 @@ test('reduces a raw task to what the plugin needs', () => {
 	assert.deepEqual(toTaskInfo(RAW), {
 		id: '6XGgm6PHrGgMpCFX', content: 'Call the plumber', checked: false, priority: 4,
 		due: { date: '2026-10-11', isRecurring: true }, projectId: 'p1', labels: ['errand'],
+		sectionId: null, parentId: null, order: 0,
 	});
 	assert.equal(toTaskInfo({ id: 'x', content: 'No date', due: null }).due, null);
 });
@@ -50,12 +51,25 @@ test('follows the cursor through every page', async () => {
 test('reads projects and marks the Inbox', async () => {
 	const { httpFetch } = fake([{ status: 200, body: { results: [
 		{ id: 'p0', name: 'Inbox', inbox_project: true },
-		{ id: 'p1', name: 'Work' },
+		{ id: 'p1', name: 'Work', parent_id: 'p9', child_order: 3 },
 	], next_cursor: null } }]);
 	assert.deepEqual(await new TodoistClient('secret', httpFetch).getProjects(), [
-		{ id: 'p0', name: 'Inbox', isInbox: true },
-		{ id: 'p1', name: 'Work', isInbox: false },
+		{ id: 'p0', name: 'Inbox', isInbox: true, parentId: null, order: 0 },
+		{ id: 'p1', name: 'Work', isInbox: false, parentId: 'p9', order: 3 },
 	]);
+});
+
+test('reads where a task sits in its project, and the order of the sections', async () => {
+	const { httpFetch, calls } = fake([
+		{ status: 200, body: { results: [{ id: 't1', content: 'One', project_id: 'p1', section_id: 's2', parent_id: 't0', child_order: 4 }], next_cursor: null } },
+		{ status: 200, body: { results: [{ id: 's1', section_order: 2 }, { id: 's2', section_order: 1 }, { id: 's3', section_order: 1 }], next_cursor: null } },
+	]);
+	const client = new TodoistClient('secret', httpFetch);
+	const [task] = await client.getTasksByFilter('today');
+	assert.deepEqual([task.sectionId, task.parentId, task.order], ['s2', 't0', 4]);
+	// Sections that share an order keep the order they are listed in.
+	assert.deepEqual(Array.from(await client.getSectionOrder()), [['s2', 0], ['s3', 1], ['s1', 2]]);
+	assert.ok(calls[1].url.includes('/sections?'));
 });
 
 test('turns failures into messages that can be shown', async () => {
