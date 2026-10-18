@@ -1,0 +1,16 @@
+{
+	"manifest_version": 1,
+	"id": "com.joelberger.wrap-selection",
+	"app_min_version": "3.0",
+	"version": "1.0.0",
+	"name": "Wrap Selection",
+	"description": "Typing *, _, ~ or = with text selected in the Markdown editor wraps the selection instead of replacing it",
+	"author": "Joel Berger",
+	"homepage_url": "https://github.com/joelberger76/joplin-plugins",
+	"repository_url": "https://github.com/joelberger76/joplin-plugins",
+	"keywords": [],
+	"categories": [],
+	"screenshots": [],
+	"icons": {},
+	"promo_tile": {}
+}

@@ -31,6 +31,9 @@ treat each plugin directory as its own project and `cd` into it before running a
   tasks into the note from a `todoist` query block, and syncs completion, names and
   details for linked lines. Built step by step from `SPEC.md` in its directory, and
   complete: all seven build steps are accepted.
+- `joplin-wrap-selection/`: typing `*`, `_`, `~` or `=` with text selected in the Markdown
+  editor wraps the selection instead of replacing it, like Obsidian. Uses a CodeMirror 6
+  content script.
 
 Each plugin directory is internally structured the same way (this is the generator's standard
 layout, not something specific to either plugin):
@@ -360,6 +363,22 @@ Restart Joplin after (re)installing either way.
 - Interactive tests against Joel's real account use a throwaway Todoist project that Claude
   creates through the Todoist connector and deletes afterwards. Joel works in Joplin, Claude
   does and checks the Todoist side.
+
+### joplin-wrap-selection
+
+- No commands, menus or settings. `src/index.ts` only registers `src/contentScript.ts`
+  (`ContentScriptType.CodeMirrorPlugin`, listed in `extraScripts`).
+- The content script adds a `Prec.high` `EditorView.inputHandler`. When the typed text is
+  one of `*`, `_`, `~`, `=` and at least one selection range is non-empty, `wrapSelection`
+  inserts the character on both sides of each non-empty range (and types it normally at
+  any bare cursor) in one transaction, keeping the inner text selected and the range's
+  direction, so a second keystroke gives `**bold**`.
+- Backticks, brackets and quotes are deliberately not handled: Joplin's "Auto-pair braces"
+  setting already wraps selections in them through CodeMirror's `closeBrackets`.
+- It skips IME composition and read-only notes (the same guards `closeBrackets` uses), and
+  input whose range is not the main selection, such as autocorrect.
+- There is no committed test. `wrapSelection` was checked by compiling `contentScript.ts`
+  with `tsc` and running it in Node against `@codemirror/state`.
 
 ## My Preferences
   - Writing style
