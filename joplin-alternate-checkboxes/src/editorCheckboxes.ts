@@ -29,19 +29,15 @@ export interface EditorMarker {
 	// End of the closing bracket.
 	to: number;
 	char: string;
-	// 1 for a top level list item, 2 for an item nested once, and so on.
-	depth: number;
 }
 
 // Exported so the matching can be checked without a real editor view.
 export function findEditorMarkers(state: any, from: number, to: number): EditorMarker[] {
 	const found: EditorMarker[] = [];
-	let depth = 0;
 
 	syntaxTree(state).iterate({
 		from, to,
 		enter: (node: any) => {
-			if (node.name === 'ListItem') depth++;
 			if (node.name !== 'ListMark') return;
 
 			const item = node.node.parent;
@@ -53,10 +49,7 @@ export function findEditorMarkers(state: any, from: number, to: number): EditorM
 			const char = match[2];
 			if (!Object.prototype.hasOwnProperty.call(taskIcons, char)) return;
 
-			found.push({ from: node.from, to: node.to + match[0].length, char, depth });
-		},
-		leave: (node: any) => {
-			if (node.name === 'ListItem') depth--;
+			found.push({ from: node.from, to: node.to + match[0].length, char });
 		},
 	});
 
@@ -73,22 +66,35 @@ function selectionTouches(selection: any, marker: EditorMarker): boolean {
 }
 
 class IconWidget extends WidgetType {
-	public constructor(private char: string, private depth: number) {
+	public constructor(private char: string) {
 		super();
 	}
 
 	public eq(other: IconWidget) {
-		return other.char === this.char && other.depth === this.depth;
+		return other.char === this.char;
 	}
 
+	// Built like Joplin's bullet (replaceBulletLists.ts): a transparent "-"
+	// gives the widget the bullet's width, so the text after it lines up
+	// with the text of plain bullets, and the icon is drawn over it.
 	public toDOM() {
+		const container = document.createElement('span');
+		container.className = iconClassName;
+		container.dataset.task = this.char;
+		container.title = taskIcons[this.char].label;
+		container.setAttribute('aria-label', taskIcons[this.char].label);
+		container.setAttribute('role', 'img');
+
+		const sizing = document.createElement('span');
+		sizing.className = 'sizing';
+		sizing.textContent = '-';
+		container.appendChild(sizing);
+
 		const icon = document.createElement('span');
-		icon.className = `${iconClassName} ${this.depth <= 1 ? '-depth-1' : ''}`.trim();
-		icon.dataset.task = this.char;
-		icon.title = taskIcons[this.char].label;
-		icon.setAttribute('aria-label', taskIcons[this.char].label);
-		icon.setAttribute('role', 'img');
-		return icon;
+		icon.className = 'icon';
+		container.appendChild(icon);
+
+		return container;
 	}
 
 	// Lets a click on the icon place the cursor, which reveals the raw text.
@@ -98,23 +104,26 @@ class IconWidget extends WidgetType {
 }
 
 function buildTheme() {
-	// Size and offsets match the built-in checkbox, so both kinds line up
-	// in a mixed list.
 	const spec: Record<string, Record<string, string>> = {
 		[`.${iconClassName}`]: {
-			display: 'inline-block',
-			width: '1.1em',
-			height: '1.1em',
-			margin: '4px',
-			marginInlineStart: '0',
-			verticalAlign: 'middle',
-			transform: 'translateY(calc(-0.1em - 1px))',
+			position: 'relative',
+		},
+		[`.${iconClassName} > .sizing`]: {
+			color: 'transparent',
+		},
+		// Centred on where Joplin draws the bullet's 4px dot (the left 4px
+		// of the widget), so it overhangs the line's start a little, like a
+		// list marker.
+		[`.${iconClassName} > .icon`]: {
+			'--size': '0.85em',
+			position: 'absolute',
+			left: 'calc(2px - var(--size) / 2)',
+			top: 'calc(50% - var(--size) / 2)',
+			width: 'var(--size)',
+			height: 'var(--size)',
 			backgroundColor: 'var(--alt-checkbox-color, currentColor)',
 			'-webkit-mask': 'var(--alt-checkbox-icon) center / contain no-repeat',
 			mask: 'var(--alt-checkbox-icon) center / contain no-repeat',
-		},
-		[`.${iconClassName}.-depth-1`]: {
-			marginInlineStart: '4px',
 		},
 		[`.${canceledLineClassName}`]: {
 			textDecoration: 'line-through',
@@ -159,7 +168,7 @@ export default (_context: { contentScriptId: string; postMessage: any }) => {
 						// whichever comes first, so the bullet is not drawn
 						// next to the icon.
 						ranges.push(Decoration.replace({
-							widget: new IconWidget(marker.char, marker.depth),
+							widget: new IconWidget(marker.char),
 							inclusiveStart: true,
 						}).range(marker.from, marker.to));
 					}

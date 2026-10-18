@@ -2,7 +2,7 @@
 	"manifest_version": 1,
 	"id": "com.joelberger.alternate-checkboxes",
 	"app_min_version": "3.0",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"name": "Alternate Checkboxes",
 	"description": "Renders Obsidian Minimal-style alternate checkboxes such as - [/], - [>], - [!] and - [?] as icons in the rendered note and the Markdown editor.",
 	"author": "Joel Berger",
@@ -13,6 +13,6 @@
 	"screenshots": [],
 	"icons": {},
 	"promo_tile": {},
-	"_publish_hash": "sha256:a8ae80d69f9ba9abd665842d0bb49e0df8dd41e73cf3d1f92bb2478ed9ec7038",
-	"_publish_commit": "main:958b76b73f6dc0f6c447b15293cc29ec2dbfd473"
+	"_publish_hash": "sha256:fcfb2fd495805415e24c56fc9fc97cfd94a23cdef9088557f727c4f77ae60e73",
+	"_publish_commit": "main:249410302190659c5ee65cc10b1bea73e4b80700"
 }

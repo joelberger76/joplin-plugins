@@ -1,6 +1,6 @@
 {
   "name": "joplin-plugin-alternate-checkboxes",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "scripts": {
     "icons": "node tools/build-css.js",
     "test": "node tools/test-rule.js",

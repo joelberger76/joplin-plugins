@@ -235,9 +235,12 @@ Restart Joplin after (re)installing either way.
   on Joplin's own `replaceCheckboxes.ts` (in `packages/editor/CodeMirror/extensions/rendering/`).
   It walks the Lezer tree for `ListMark` nodes under `BulletList > ListItem`, so code blocks
   are skipped for free, and replaces the list mark plus marker with an icon widget
-  (`span.cm-alt-checkbox[data-task]`). Size and offsets copy the built-in checkbox theme so
-  both line up in a mixed list. A `[-]` line also gets the `cm-alt-checkbox-canceled` line
-  class.
+  (`span.cm-alt-checkbox[data-task]`). The widget is built like Joplin's bullet
+  (`replaceBulletLists.ts`): a transparent `-` gives it the bullet's width, so its text lines
+  up with plain bullets, and a 0.85em icon is drawn over it, centred on where the bullet's dot
+  would be. It does not line up with the built-in `[ ]` checkboxes, which are wider. The icon
+  is small because Joplin leaves only about 6px between the gutter and a top level bullet.
+  A `[-]` line also gets the `cm-alt-checkbox-canceled` line class.
 - Reveal rule, copied from Joplin's checkboxes: the raw text shows while the selection
   touches the list mark or marker, except for a bare cursor right before the list mark. A
   cursor elsewhere on the line keeps the icon. Joel first described wanting it per line, so
@@ -366,6 +369,7 @@ Restart Joplin after (re)installing either way.
      - When committing, include untracked files.
      - When committing, if there are unstaged changes predating your session, please include them.
      - When committing, you should not push to origin until I tell you to.
+     - Version each plugin with semantic versioning (MAJOR.MINOR.PATCH). Once I confirm a change is done, bump that plugin's version to match it: PATCH for bug fixes and small tweaks, MINOR for new features or settings that keep existing behavior working, MAJOR for changes that break existing notes, settings or workflows. Bump once per confirmed batch of changes, not once per edit, and only the plugins that changed. Keep `package.json` and `src/manifest.json` on the same version. `npm run updateVersion` only bumps PATCH, so set MINOR and MAJOR bumps by hand in both files. Say which bump you chose and why.
   - Code review
      - Always run a code review (the `code-review` skill) on the changes before finalizing work, and fix or report what it finds. Finalizing means calling the work done or committing it.
   - I store our shared to-do list in TODO.md, one per plugin, inside that plugin's directory (for example `joplin-todoist-sync/TODO.md`). A root TODO.md is only for items that apply to the whole repo. Please create it if it doesn't exist already. To-dos should be deleted once complete, but only after I confirm this is ok.
