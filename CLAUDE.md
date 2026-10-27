@@ -86,6 +86,21 @@ own README for specifics (`joplin-pandoc-docx/README.md` documents this in detai
 
 Restart Joplin after (re)installing either way.
 
+**Claude installs plugin updates itself.** "Install from file" only copies the archive to
+`~/.config/joplin-desktop/plugins/<id>.jpl`, and Joplin loads every archive there at start.
+So after `npm run dist` on a plugin, Claude copies `publish/<id>.jpl` to that path (skip it if
+`cmp` says the installed copy is already current) and restarts Joplin:
+
+```
+osascript -e 'quit app "Joplin"'   # graceful quit, so Joplin saves open notes
+for i in $(seq 30); do pgrep -x Joplin >/dev/null || break; sleep 1; done
+pgrep -x Joplin >/dev/null || open -a Joplin
+```
+
+If Joplin is still running after 30 seconds (a dialog may be blocking the quit), don't
+relaunch it; tell Joel instead. If Joplin wasn't running, just copy the file and leave it closed. Don't do this for a plugin
+loaded through the Development plugins path, since it would then be loaded twice.
+
 ## Architecture notes specific to each plugin
 
 ### joplin-cycle-bullet-checkbox
