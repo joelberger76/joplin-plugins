@@ -2,7 +2,7 @@
 	"manifest_version": 1,
 	"id": "com.joelberger.inline-tag-style",
 	"app_min_version": "3.0",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"name": "Inline Tag Style",
 	"description": "Highlights inline #tags as pills in the Markdown editor and hides them in the rendered note.",
 	"author": "Joel Berger",
@@ -13,6 +13,6 @@
 	"screenshots": [],
 	"icons": {},
 	"promo_tile": {},
-	"_publish_hash": "sha256:e895bb235977744e7fc319167b1a0bcf898a6d3ca69e0313e815abd618d9d1cd",
-	"_publish_commit": "main:1e9cf9359eab3d919c94f778971a6df9615f38d0"
+	"_publish_hash": "sha256:cee52e2844d2b48c228127f647689677aaa227b2099b77c0c71ab3ab81b89e1d",
+	"_publish_commit": "main:951ffd1b4988c86ffc06191c3a6a89b40cdc54a5"
 }

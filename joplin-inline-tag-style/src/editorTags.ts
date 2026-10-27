@@ -109,18 +109,19 @@ export default (context: { contentScriptId: string; postMessage: any }) => {
 			// setting is filled in.
 			const tagTheme = EditorView.baseTheme({
 				'.cm-inline-tag': {
-					borderRadius: '0.6em',
-					padding: '0.05em 0.45em',
-					fontSize: '0.9em',
+					borderRadius: '0.5em',
+					padding: '0 0.4em',
+					fontSize: '0.6em',
+					verticalAlign: '0.15em',
 					fontWeight: '500',
 				},
 				'&light .cm-inline-tag': {
-					backgroundColor: 'var(--inline-tag-background, rgba(89, 190, 201, 0.22))',
-					color: 'var(--inline-tag-color, #13294B)',
+					backgroundColor: 'var(--inline-tag-background, #007DBA)',
+					color: 'var(--inline-tag-color, #FFFFFF)',
 				},
 				'&dark .cm-inline-tag': {
-					backgroundColor: 'var(--inline-tag-background, rgba(89, 190, 201, 0.25))',
-					color: 'var(--inline-tag-color, #BFE9EE)',
+					backgroundColor: 'var(--inline-tag-background, #007DBA)',
+					color: 'var(--inline-tag-color, #FFFFFF)',
 				},
 			});
 
